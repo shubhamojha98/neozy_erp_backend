@@ -1,11 +1,11 @@
 generator client {
-    provider = "prisma-client-js"
+    provider = "prisma-client"
     output   = "../../generated/db-log"
+    moduleFormat = "cjs"
 }
 
 datasource db {
     provider = "postgresql"
-    url      = env("DATABASE_LOGS")
 }
 
 model tbl_user_login_logs {

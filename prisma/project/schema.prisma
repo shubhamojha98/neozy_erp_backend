@@ -1,11 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../../generated/project"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL_PROJECT")
 
   schemas = ["project"]
 }
@@ -48,27 +48,69 @@ enum EngineeringStatus {
   @@schema("project")
 }
 
+// ============================================================
+// CUSTOMER — B2B (trading / material buyer) ya B2C (solar installation)
+// companyId / assignedTo / createdBy → panel DB ke ids
+// ============================================================
+enum CustomerType {
+  B2B
+  B2C
+
+  @@schema("project")
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+
+  @@schema("project")
+}
+
 model Customer {
-  id           Int    @id @default(autoincrement())
+  id           Int            @id @default(autoincrement())
   companyId    Int
-  customerCode String @unique
+  customerCode String // CUS000001 (company me unique)
+  type         CustomerType
+  status       CustomerStatus @default(ACTIVE)
 
-  customerName  String
-  customerPhone String  @unique
-  customerEmail String?
-  customerType  String?
+  name           String // B2C: customer, B2B: contact person
+  phone          String
+  alternatePhone String?
+  email          String?
+  address        String? // B2B: office address, B2C: installation address
+  city           String?
+  state          String?
+  pincode        String?
 
-  createdAt DateTime @default(now())
+  // B2B
+  companyName  String?
+  gstin        String?
+  industryType String?
+
+  // B2C (solar)
+  aadhaarNumber  String?
+  projectType    String? // Residential / Commercial / Industrial / Agricultural
+  monthlyBill    Decimal? @db.Decimal(12, 2)
+  sanctionLoadKw Decimal? @db.Decimal(10, 2)
+  consumerNumber String?
+  roofType       String?
+
+  source       String? // lead ka source (Website, Referral, ...) ya "Direct"
+  assignedTo   Int? // user id
+  sourceLeadId Int? // lead.Lead.id
+  notes        String?
+
   createdBy Int
-  updatedAt DateTime @updatedAt
-  updatedBy Int?
-  groupId   String?
-  recStatus Int      @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   projects Project[]
 
-  @@index([customerName])
-  @@index([customerPhone])
+  @@unique([companyId, customerCode])
+  @@index([companyId, phone])
+  @@index([companyId, type])
+  @@index([assignedTo])
   @@schema("project")
 }
 
@@ -174,5 +216,32 @@ model EngineeringDesign {
   @@index([surveyId])
   //   @@index([projectId])
   @@index([status])
+  @@schema("project")
+}
+
+// ============================================================
+// DOCUMENT — Lead / Customer / Project ki files (ek hi table, sab jagah wahi record)
+// File disk par: uploads/{companyId}/{yyyy-mm}/{category}/{random}.jpg
+// leadId → lead.Lead.id (dusra DB). Convert par customerId bhi lag jata hai.
+// ============================================================
+model Document {
+  id         Int     @id @default(autoincrement())
+  companyId  Int
+  leadId     Int?
+  customerId Int?
+  projectId  Int?
+  category   String // Aadhaar, Electricity Bill, ...
+  fileName   String // user ki file ka asli naam
+  filePath   String // uploads/... (relative)
+  mimeType   String
+  size       Int // bytes (compress ke baad)
+
+  uploadedBy Int
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  @@index([companyId, leadId])
+  @@index([companyId, customerId])
+  @@index([companyId, projectId])
   @@schema("project")
 }

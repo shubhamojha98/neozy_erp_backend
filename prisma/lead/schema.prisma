@@ -1,95 +1,97 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../../generated/lead"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL_LEADS")
 
   schemas = ["lead"]
 }
 
-model LeadSourceMaster {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  companyId   Int
-  description String?
-  createdBy   Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  recStatus   Int      @default(1)
-  groupId     String?
+// ============================================================
+// LEAD — enquiry jo abhi customer nahi bana
+// companyId / assignedTo / createdBy → panel DB ke ids (company, user)
+// ============================================================
+enum LeadStatus {
+  NEW
+  FOLLOW_UP
+  QUALIFIED
+  CONVERTED
+  LOST
 
-  leads LeadMaster[]
-
-  @@index([recStatus])
-  @@map("lead_source_master")
   @@schema("lead")
 }
 
-model LeadMaster {
-  id Int @id @default(autoincrement())
+enum LeadActivityType {
+  CALL // call log (connected / not connected + outcome)
+  NOTE
+  STATUS // status badla
+  ASSIGN // transfer
+  CONVERT // customer bana
 
+  @@schema("lead")
+}
+
+model Lead {
+  id        Int    @id @default(autoincrement())
   companyId Int
-  leadNo    String @unique
+  leadNo    String // LD000001 (company me unique)
 
-  leadSourceId Int
-  leadSource   LeadSourceMaster @relation(fields: [leadSourceId], references: [id])
+  name            String
+  phone           String
+  alternateName   String?
+  alternatePhone  String?
+  email           String?
+  address         String?
+  city            String?
+  state           String?
+  pincode         String?
+  source          String // Website, Referral, ... (lib/constants.ts)
+  status          LeadStatus @default(NEW)
+  notes           String?
+  lostReason      String? // Rejected / Duplicate / Wrong Number ...
 
-  customerName String
-  mobileNo     String
-  email        String?
-
-  address String?
-  city    String?
-  state   String?
-  pincode String?
-
-  assignedTo Int?
-
-  lastFollowupDate DateTime?
+  assignedTo       Int? // user id
   nextFollowupDate DateTime?
+  lastContactedAt  DateTime?
 
-  remarks String?
+  convertedCustomerId Int? // project.Customer.id
+  convertedAt         DateTime?
 
-  createdBy Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  recStatus Int      @default(1)
-  groupId   String?
+  createdBy Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  followups LeadFollowup[]
+  activities LeadActivity[]
 
-  @@index([mobileNo])
+  @@unique([companyId, leadNo])
+  @@index([companyId, status])
+  @@index([companyId, phone])
   @@index([assignedTo])
-  @@index([leadSourceId])
-  @@map("lead_master")
+  @@index([nextFollowupDate])
+  @@map("leads")
   @@schema("lead")
 }
 
-model LeadFollowup {
-  id Int @id @default(autoincrement())
-
-  companyId Int
-
-  leadId   Int
-  statusId Int
-
-  followupDate     DateTime  @default(now())
-  remarks          String?
+// Timeline: call log, note, status change, transfer, convert
+model LeadActivity {
+  id        Int              @id @default(autoincrement())
+  leadId    Int
+  type      LeadActivityType
+  connected Boolean? // CALL: phone utha ya nahi
+  outcome   String? // CALL: Interested / Busy / ... , STATUS: naya status
+  remarks   String?
   nextFollowupDate DateTime?
 
-  createdBy Int?
+  createdBy Int
   createdAt DateTime @default(now())
 
-  groupId String?
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  lead LeadMaster @relation(fields: [leadId], references: [id])
-
-  @@index([leadId])
-  @@index([statusId])
-  @@index([followupDate])
-  @@map("lead_followup")
+  @@index([leadId, createdAt])
+  @@map("lead_activities")
   @@schema("lead")
 }

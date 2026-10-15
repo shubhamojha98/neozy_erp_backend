@@ -1,19 +1,19 @@
 const { execSync } = require("child_process");
 
-const schemas = [
-    "prisma/schema.prisma",
-    "prisma/db-log/schema.prisma",
-    "prisma/inventory/schema.prisma",
-    "prisma/project/schema.prisma",
-    "prisma/lead/schema.prisma"
+const configs = [
+    "prisma.config.ts",
+    "prisma/db-log/prisma.config.ts",
+    "prisma/inventory/prisma.config.ts",
+    "prisma/project/prisma.config.ts",
+    "prisma/lead/prisma.config.ts"
 ];
 
-schemas.forEach((schema) => {
+configs.forEach((config) => {
     try {
-        console.log(`\n▶ Generating client for: ${schema}`);
-        execSync(`npx prisma generate --schema=${schema}`, { stdio: "inherit" });
+        console.log(`\n▶ Generating client for: ${config}`);
+        execSync(`npx prisma generate --config=${config}`, { stdio: "inherit" });
     } catch (err) {
-        console.error(`❌ Failed to generate for ${schema}:`, err.message);
+        console.error(`❌ Failed to generate for ${config}:`, err.message);
         process.exit(1);
     }
 });

@@ -30,7 +30,6 @@ export function decryptData({ encryptedData, iv }: { encryptedData: string; iv: 
 
 // Helper to accept both encrypted and plain payloads seamlessly
 export function extractPayload(payload: any) {
-    console.log(payload,"payload")
     if (payload && payload.encryptedData && payload.iv) {
         try {
             return decryptData({ encryptedData: payload.encryptedData as string, iv: payload.iv as string });

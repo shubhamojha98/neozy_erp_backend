@@ -1,7 +1,6 @@
-import { PrismaClient } from '../generated/panel';
+import { panel as panelDb } from "../lib/globalprimsaclient";
 import { sendWhatsappOtp } from './sendWhatsappOtp';
 
-const panelDb = new PrismaClient();
 
 // ================================================================
 // TYPES

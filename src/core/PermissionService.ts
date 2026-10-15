@@ -1,7 +1,7 @@
-import { PrismaClient, ActionType, PermissionEffect, AbacAttribute } from '../../generated/panel';
+import { ActionType, PermissionEffect, AbacAttribute } from '../../generated/panel/client';
+import { panel as prisma } from "../../lib/globalprimsaclient";
 import { SecurityCache } from './SecurityCache';
 
-const prisma = new PrismaClient();
 
 export interface PermissionContext {
   userId: number;

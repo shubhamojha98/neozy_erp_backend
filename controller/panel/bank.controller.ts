@@ -1,13 +1,12 @@
 import { AuthenticatedRequest } from "../../src/core/types";
 import { AuthPayload } from "../../type/common.type";
-import { PrismaClient as panelClient } from '../../generated/panel'
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { extractPayload, encryptData } from "../../lib/apiCryptography";
 import { Request, Response } from "express";
 import { handlePrismaError } from "../../lib/prismaErrorHandler";
 
-const panel = new panelClient()
 
 export const createBank = async (req: Request, res: Response) => {
     try {

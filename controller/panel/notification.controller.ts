@@ -1,10 +1,9 @@
 import { AuthenticatedRequest } from "../../src/core/types";
-import { PrismaClient as panelClient } from '../../generated/panel';
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { Request, Response } from "express";
 
-const panel = new panelClient();
 
 /**
  * sanitizeForJson

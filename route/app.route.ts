@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { authMiddleware } from "../middleware/authMiddleware";
+import { authMiddleware, requireSuperAdmin } from "../middleware/authMiddleware";
 import { dynamicCheckPermission } from "../middleware/dynamicPermission";
 import { microserviceProxy } from "../middleware/proxy.middleware";
 import { sendOtpHandler } from "../controller/external/whatsapp.controller";
@@ -13,6 +13,8 @@ import dashboard from "./dashboard/dashboard.route";
 import inventoryRoutes from "./inventory/invenotry.route";
 import projectRoutes from "./project/project.route";
 import leadRoutes from "./lead/lead.routes";
+import customerRoutes from "./customer/customer.route";
+import platformRoutes from "./platform/platform.route";
 
 
 
@@ -30,6 +32,7 @@ router.get("/", (req: Request, res: Response) => {
  */
 router.use("/uploads", express.static("assets"));
 router.use("/api/auth", authRoute);
+router.use("/api/platform", authMiddleware, requireSuperAdmin, platformRoutes); // super admin only
 router.post("/api/whatsapp/otp", sendOtpHandler);
 
 const proxyLimiter = rateLimit({
@@ -51,5 +54,6 @@ router.use("/api/dashboard", dashboard);
 router.use("/api/inventory", inventoryRoutes);
 router.use("/api/project", projectRoutes);
 router.use("/api/lead", leadRoutes);
+router.use("/api/customer", customerRoutes);
 
 export default router;

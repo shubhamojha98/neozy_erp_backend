@@ -4,7 +4,7 @@
 
 import { Server as HttpServer } from 'http';
 import { Server as IOServer, Socket } from 'socket.io';
-import { PrismaClient as panelClient } from '../generated/panel';
+import { panel } from "../lib/globalprimsaclient";
 
 type LoggerLike = {
     info?: (...args: any[]) => void;
@@ -21,7 +21,6 @@ type NotificationPayload = {
     timestamp?: string;
 };
 
-const panel = new panelClient();
 
 class SocketService {
     private io: IOServer | null = null;

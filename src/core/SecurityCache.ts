@@ -1,9 +1,8 @@
 import IORedis from "ioredis";
-import { PrismaClient } from "../../generated/panel";
+import { panel as prisma } from "../../lib/globalprimsaclient";
 import { connection } from "../queue/connection";
 
 const redis = new IORedis(connection);
-const prisma = new PrismaClient();
 
 export class SecurityCache {
   /**

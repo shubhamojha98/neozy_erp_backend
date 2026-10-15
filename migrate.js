@@ -1,18 +1,18 @@
 const { execSync } = require("child_process");
 
-const schemas = [
-    "prisma/inventory/schema.prisma",
-    "prisma/project/schema.prisma",
-    "prisma/leads/schema.prisma"
+const configs = [
+    "prisma/inventory/prisma.config.ts",
+    "prisma/project/prisma.config.ts",
+    "prisma/lead/prisma.config.ts"
 
 ]
 
-schemas.forEach((schema) => {
+configs.forEach((config) => {
     try {
-        console.log(`\n▶ migrating schema for: ${schema}`);
-        execSync(`npx prisma migrate deploy --schema=${schema}`, { stdio: "inherit" });
+        console.log(`\n▶ migrating schema for: ${config}`);
+        execSync(`npx prisma migrate deploy --config=${config}`, { stdio: "inherit" });
     } catch (err) {
-        console.error(`❌ Failed to migrate for ${schema}:`, err.message);
+        console.error(`❌ Failed to migrate for ${config}:`, err.message);
     }
 });
 

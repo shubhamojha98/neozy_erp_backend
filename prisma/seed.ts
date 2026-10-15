@@ -7,10 +7,11 @@ import {
   PrismaClient,
   RoleScope,
   UserStatus,
-} from "../generated/panel";
+} from "../generated/panel/client";
+import { panel as prisma } from "../lib/globalprimsaclient";
 
 /**
- * Seed: run with `npx prisma db seed` (package.json → "prisma": { "seed": "tsx prisma/seed.ts" })
+ * Seed: run with `npx prisma db seed` (seed command is in prisma.config.ts)
  * Initial setup only: modules, menus, permissions, role master templates and the super admin.
  * Everything else (tenants, companies, users, roles) is created from the panel.
  * Safe to re-run. Env: SUPER_ADMIN_USERNAME, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD (required in production)
@@ -46,27 +47,33 @@ const MODULES: ModuleDef[] = [
     is_platform: true,
     menus: [
       {
+        code: "platform.dashboard",
+        name: "Admin Dashboard",
+        path: "/dashboard/admin-dashboard",
+        actions: [A.VIEW],
+      },
+      {
         code: "platform.companies",
         name: "Companies",
-        path: "/platform/companies",
+        path: "/dashboard/platform/companies",
         actions: [...CRUD, A.EXPORT],
       },
       {
         code: "platform.role_masters",
         name: "Role Master",
-        path: "/platform/role-masters",
+        path: "/dashboard/platform/role-masters",
         actions: CRUD,
       },
       {
         code: "platform.modules",
         name: "Modules & Menus",
-        path: "/platform/modules",
+        path: "/dashboard/platform/modules",
         actions: [A.VIEW, A.EDIT],
       },
       {
         code: "platform.users",
         name: "All Users",
-        path: "/platform/users",
+        path: "/dashboard/platform/users",
         actions: [A.VIEW, A.EDIT, A.EXPORT],
       },
     ],
@@ -80,7 +87,7 @@ const MODULES: ModuleDef[] = [
       {
         code: "dashboard.overview",
         name: "Overview",
-        path: "/dashboard",
+        path: "/dashboard/overview",
         actions: [A.VIEW],
       },
     ],
@@ -93,19 +100,19 @@ const MODULES: ModuleDef[] = [
       {
         code: "leads.leads",
         name: "Leads",
-        path: "/leads",
+        path: "/dashboard/leads",
         actions: [...CRUD, A.ASSIGN, A.IMPORT, A.EXPORT],
       },
       {
         code: "leads.followups",
         name: "Follow-ups",
-        path: "/leads/follow-ups",
+        path: "/dashboard/leads/follow-ups",
         actions: CRUD,
       },
       {
         code: "leads.site_surveys",
         name: "Site Surveys",
-        path: "/leads/site-surveys",
+        path: "/dashboard/leads/site-surveys",
         actions: [...CRUD, A.APPROVE, A.ASSIGN],
       },
     ],
@@ -118,31 +125,31 @@ const MODULES: ModuleDef[] = [
       {
         code: "sales.customers",
         name: "Customers",
-        path: "/sales/customers",
+        path: "/dashboard/sales/customers",
         actions: [...CRUD, A.EXPORT, A.IMPORT],
       },
       {
         code: "sales.quotations",
         name: "Quotations",
-        path: "/sales/quotations",
+        path: "/dashboard/sales/quotations",
         actions: [...CRUD, A.APPROVE, A.PRINT, A.EXPORT],
       },
       {
         code: "sales.orders",
         name: "Sales Orders",
-        path: "/sales/orders",
+        path: "/dashboard/sales/orders",
         actions: [...CRUD, A.APPROVE, A.PRINT, A.EXPORT],
       },
       {
         code: "sales.invoices",
         name: "Invoices",
-        path: "/sales/invoices",
+        path: "/dashboard/sales/invoices",
         actions: [...CRUD, A.APPROVE, A.PRINT, A.EXPORT],
       },
       {
         code: "sales.payments",
         name: "Payments",
-        path: "/sales/payments",
+        path: "/dashboard/sales/payments",
         actions: [...CRUD, A.APPROVE, A.EXPORT],
       },
     ],
@@ -155,37 +162,37 @@ const MODULES: ModuleDef[] = [
       {
         code: "inventory.products",
         name: "Products",
-        path: "/inventory/products",
+        path: "/dashboard/inventory/products",
         actions: [...CRUD, A.IMPORT, A.EXPORT],
       },
       {
         code: "inventory.warehouses",
         name: "Warehouses",
-        path: "/inventory/warehouses",
+        path: "/dashboard/inventory/warehouses",
         actions: CRUD,
       },
       {
         code: "inventory.stock",
         name: "Stock",
-        path: "/inventory/stock",
+        path: "/dashboard/inventory/stock",
         actions: [A.VIEW, A.EDIT, A.EXPORT],
       },
       {
         code: "inventory.vendors",
         name: "Vendors",
-        path: "/inventory/vendors",
+        path: "/dashboard/inventory/vendors",
         actions: [...CRUD, A.EXPORT],
       },
       {
         code: "inventory.purchase_orders",
         name: "Purchase Orders",
-        path: "/inventory/purchase-orders",
+        path: "/dashboard/inventory/purchase-orders",
         actions: [...CRUD, A.APPROVE, A.PRINT, A.EXPORT],
       },
       {
         code: "inventory.transfers",
         name: "Stock Transfers",
-        path: "/inventory/transfers",
+        path: "/dashboard/inventory/transfers",
         actions: [...CRUD, A.APPROVE],
       },
     ],
@@ -198,31 +205,31 @@ const MODULES: ModuleDef[] = [
       {
         code: "projects.projects",
         name: "Projects",
-        path: "/projects",
+        path: "/dashboard/projects",
         actions: [...CRUD, A.ASSIGN, A.EXPORT],
       },
       {
         code: "projects.installations",
         name: "Installations",
-        path: "/projects/installations",
+        path: "/dashboard/projects/installations",
         actions: [...CRUD, A.ASSIGN],
       },
       {
         code: "projects.subsidy",
         name: "Subsidy & Net Metering",
-        path: "/projects/subsidy",
+        path: "/dashboard/projects/subsidy",
         actions: [...CRUD, A.APPROVE],
       },
       {
         code: "projects.commissioning",
         name: "Commissioning",
-        path: "/projects/commissioning",
+        path: "/dashboard/projects/commissioning",
         actions: [A.VIEW, A.CREATE, A.EDIT, A.APPROVE, A.PRINT],
       },
       {
         code: "projects.service",
         name: "Service & AMC",
-        path: "/projects/service",
+        path: "/dashboard/projects/service",
         actions: [...CRUD, A.ASSIGN],
       },
     ],
@@ -235,19 +242,19 @@ const MODULES: ModuleDef[] = [
       {
         code: "reports.sales",
         name: "Sales Reports",
-        path: "/reports/sales",
+        path: "/dashboard/reports/sales",
         actions: [A.VIEW, A.EXPORT, A.PRINT],
       },
       {
         code: "reports.inventory",
         name: "Inventory Reports",
-        path: "/reports/inventory",
+        path: "/dashboard/reports/inventory",
         actions: [A.VIEW, A.EXPORT, A.PRINT],
       },
       {
         code: "reports.projects",
         name: "Project Reports",
-        path: "/reports/projects",
+        path: "/dashboard/reports/projects",
         actions: [A.VIEW, A.EXPORT, A.PRINT],
       },
     ],
@@ -261,31 +268,31 @@ const MODULES: ModuleDef[] = [
       {
         code: "admin.company",
         name: "Company Profile",
-        path: "/admin/company",
+        path: "/dashboard/admin/company",
         actions: [A.VIEW, A.EDIT],
       },
       {
         code: "admin.sub_companies",
         name: "Sub Companies",
-        path: "/admin/sub-companies",
+        path: "/dashboard/admin/sub-companies",
         actions: [A.VIEW, A.CREATE, A.EDIT],
       },
       {
         code: "admin.users",
         name: "Users",
-        path: "/admin/users",
+        path: "/dashboard/admin/users",
         actions: [...CRUD, A.EXPORT],
       },
       {
         code: "admin.roles",
         name: "Roles & Permissions",
-        path: "/admin/roles",
+        path: "/dashboard/admin/roles",
         actions: CRUD,
       },
       {
         code: "admin.audit_logs",
         name: "Audit Logs",
-        path: "/admin/audit-logs",
+        path: "/dashboard/admin/audit-logs",
         actions: [A.VIEW, A.EXPORT],
       },
     ],
@@ -500,7 +507,6 @@ function expandPatterns(
 // ============================================================
 // SEED
 // ============================================================
-const prisma = new PrismaClient();
 const isProd = process.env.NODE_ENV === "production";
 const BCRYPT_ROUNDS = 12;
 

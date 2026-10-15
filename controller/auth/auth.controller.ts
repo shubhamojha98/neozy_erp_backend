@@ -1,13 +1,15 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { UserStatus } from "../../generated/panel";
+import { UserStatus } from "../../generated/panel/client";
 import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
-import { decryptData } from "../../lib/apiCryptography";
-import { ACCESS_TOKEN_TTL, signToken, TokenPayload } from "../../middleware/authMiddleware";
+import { decryptData, extractPayload } from "../../lib/apiCryptography";
+import { ACCESS_TOKEN_TTL, AuthenticatedRequest, signToken, TokenPayload } from "../../middleware/authMiddleware";
 import {
+  AccessUser,
   accessUserInclude,
+  canAccessCompany,
   getAccessContext,
   isSuperAdmin,
   listAccessibleCompanies,
@@ -24,6 +26,42 @@ function logLoginAttempt(req: Request, identifier: string, userId: number | null
   return panel.loginAttempt.create({
     data: { identifier, user_id: userId, success, reason, ip_address: getIp(req), user_agent: req.headers["user-agent"] || null },
   });
+}
+
+// ============================================================
+// SESSION — token + user details for one company (login aur switch dono me same)
+// ============================================================
+async function buildSession(user: AccessUser, companyId: number | null) {
+  // Is company me roles + permissions + menus, aur user ki saari companies
+  const [access, companies] = await Promise.all([getAccessContext(user.id, companyId), listAccessibleCompanies(user)]);
+  const activeCompany = companies.find((c) => c.id === companyId);
+
+  const payload: TokenPayload = {
+    userId: user.id,
+    tokenVersion: user.token_version,
+    username: user.username,
+    name: [user.first_name, user.last_name].filter(Boolean).join(" "),
+    isSuperAdmin: access.isSuperAdmin,
+    company: activeCompany ? { id: activeCompany.id, code: activeCompany.code, name: activeCompany.name } : null,
+    companyUserId: access.companyUserId,
+    roles: access.roles,
+    dataScope: access.dataScope,
+    permissions: access.isSuperAdmin ? [] : access.permissions, // super admin ko sab allowed, list ki zarurat nahi
+  };
+
+  return {
+    token: signToken(payload),
+    expiresIn: ACCESS_TOKEN_TTL,
+    user: {
+      ...payload,
+      email: user.email,
+      phone: user.phone,
+      mustChangePassword: user.must_change_password,
+      permissions: access.permissions, // frontend buttons dikhane/chhupane ke liye
+      companies, // company switcher ke liye
+      menus: access.menus, // sidebar ke liye
+    },
+  };
 }
 
 // ============================================================
@@ -86,44 +124,43 @@ export const login = async (req: Request, res: Response) => {
       return genrateResponse(res, HttpStatus.Forbidden, "No active company assigned. Please contact your administrator.");
     }
 
-    // 5. Is company me roles + permissions + menus, aur user ki saari companies
-    const [access, companies] = await Promise.all([getAccessContext(user.id, companyId), listAccessibleCompanies(user)]);
-    const activeCompany = companies.find((c) => c.id === companyId);
-
-    // 6. Login successful
+    // 5. Login successful
     await panel.user.update({
       where: { id: user.id },
       data: { failed_login_count: 0, locked_until: null, last_login_at: new Date() },
     });
     await logLoginAttempt(req, identifier, user.id, true);
 
-    const payload: TokenPayload = {
-      userId: user.id,
-      username: user.username,
-      name: [user.first_name, user.last_name].filter(Boolean).join(" "),
-      isSuperAdmin: access.isSuperAdmin,
-      company: activeCompany ? { id: activeCompany.id, code: activeCompany.code, name: activeCompany.name } : null,
-      companyUserId: access.companyUserId,
-      roles: access.roles,
-      dataScope: access.dataScope,
-      permissions: access.isSuperAdmin ? [] : access.permissions, // super admin ko sab allowed, list ki zarurat nahi
-    };
-
-    return genrateResponse(res, HttpStatus.OK, "Login successful", {
-      token: signToken(payload),
-      expiresIn: ACCESS_TOKEN_TTL,
-      user: {
-        ...payload,
-        email: user.email,
-        phone: user.phone,
-        mustChangePassword: user.must_change_password,
-        permissions: access.permissions, // frontend buttons dikhane/chhupane ke liye
-        companies, // company switcher ke liye
-        menus: access.menus, // sidebar ke liye
-      },
-    });
+    return genrateResponse(res, HttpStatus.OK, "Login successful", await buildSession(user, companyId));
   } catch (err) {
     console.error("[Login]", err);
     return genrateResponse(res, HttpStatus.InternalServerError, "Login failed");
+  }
+};
+// ============================================================
+// SWITCH COMPANY  (company_id: null → super admin platform console)
+// ============================================================
+export const switchCompany = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const data = extractPayload(req.body) ?? {};
+    const companyId = data.company_id == null ? null : Number(data.company_id);
+
+    const user = await panel.user.findFirst({
+      where: { id: req.user!.userId, deleted_at: null, status: UserStatus.ACTIVE },
+      include: accessUserInclude,
+    });
+    if (!user) return genrateResponse(res, HttpStatus.Unauthorized, "Session expired. Please login again.");
+
+    if (companyId == null) {
+      if (!isSuperAdmin(user)) return genrateResponse(res, HttpStatus.BadRequest, "Valid company_id is required");
+    } else if (!companyId || !(await canAccessCompany(user, companyId))) {
+      return genrateResponse(res, HttpStatus.Forbidden, "You do not have access to this company");
+    }
+
+    const session = await buildSession(user, companyId);
+    return genrateResponse(res, HttpStatus.OK, `Switched to ${session.user.company?.name ?? "Platform Console"}`, session);
+  } catch (err) {
+    console.error("[SwitchCompany]", err);
+    return genrateResponse(res, HttpStatus.InternalServerError, "Failed to switch company");
   }
 };

@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { UserType } from '../../generated/panel';
+import { UserType } from '../../generated/panel/client';
 import { AuthPayload } from '../../type/common.type';
 
 declare global {

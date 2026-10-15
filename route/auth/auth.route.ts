@@ -1,11 +1,12 @@
 import express from "express";
-import { login } from "../../controller/auth/auth.controller";
-// import { authMiddleware } from "../../middleware/authMiddleware";
+import { login, switchCompany } from "../../controller/auth/auth.controller";
+import { authMiddleware } from "../../middleware/authMiddleware";
 
 const router = express.Router();
 
 // Public
 router.post("/login", login);
+router.post("/switch-company", authMiddleware, switchCompany);
 // router.post("/refresh", refreshAccessToken);
 // router.post("/verify-otp", verifyOTP);
 // router.post("/resend-otp", resendLoginOtp);

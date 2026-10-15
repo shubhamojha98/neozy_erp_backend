@@ -1,14 +1,11 @@
 import { Router } from "express";
 import {
-  createCustomer,
   createProject,
   getAllProjects,
   updateProject,
 } from "../../controller/project/project.controller";
 
 const router = Router();
-
-router.post("/create-customer",createCustomer)
 
 router.post("/create-project", createProject);
 router.get("/get-projects", getAllProjects);

@@ -1,6 +1,5 @@
 
-import { PrismaClient as Panel } from "../generated/panel";
-const panel = new Panel()
+import { panel } from "../lib/globalprimsaclient";
 
 
 function normalizeName(name: string | undefined): string {

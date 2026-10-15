@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient as panelClient, AuditAction } from '../../generated/panel'
+import { AuditAction } from '../../generated/panel/client'
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from '../../lib/generateResponse';
 import HttpStatus from '../../lib/httpStatus';
 import { extractPayload, encryptData } from '../../lib/apiCryptography';
@@ -9,7 +10,6 @@ import { createRole, getRoles, toggleRole } from '../../dal/panel.dal';
 import { handlePrismaError } from '../../lib/prismaErrorHandler';
 import { SecurityCache } from '../../src/core/SecurityCache';
 
-const panel = new panelClient()
 
 export const create = async (req: AuthenticatedRequest, res: Response) => {
     try {

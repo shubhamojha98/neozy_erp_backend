@@ -1,7 +1,7 @@
-import { Prisma, PrismaClient, ActionType, AuditAction, PlatformType } from "../generated/panel";
+import { Prisma, ActionType, AuditAction, PlatformType } from "../generated/panel/client";
+import { panel as prisma } from "../lib/globalprimsaclient";
 import { panel } from "../lib/globalprimsaclient";
 import { SecurityCache } from "../src/core/SecurityCache";
-const prisma = new PrismaClient();
 
 //*********************************************************************// Menu Action (Permission) DAL Functions *********************************************************************//
 export const createMenuAction = async (dataArray: { menu_id: number, action: ActionType, label: string }[]) => {

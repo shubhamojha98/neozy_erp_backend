@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../../src/core/types";
 import { AuthPayload } from "../../type/common.type";
-import { PrismaClient as panelClient, UserType, PermissionEffect } from '../../generated/panel'
+import { UserType, PermissionEffect } from '../../generated/panel/client'
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import bcrypt from "bcrypt";
@@ -11,7 +12,6 @@ import { sizeReducer } from "../../lib/sizeReducer";
 import { generateEmpCode } from "../../lib/empCodeGenerator";
 import { handlePrismaError } from "../../lib/prismaErrorHandler";
 
-const panel = new panelClient()
 
 // Helper to normalize array-like inputs from multipart/form-data
 const normalizeArray = (val: any, body: any, key: string) => {

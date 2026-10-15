@@ -6,3 +6,5 @@ node_modules
 generated
 prisma/generated
 build
+# Upload ki hui files (Aadhaar, bill ...) — git me nahi
+uploads

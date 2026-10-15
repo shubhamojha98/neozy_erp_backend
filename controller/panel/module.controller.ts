@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../../src/core/types";
 import { AuthPayload } from "../../type/common.type";
-import { PrismaClient as panelClient, PlatformType } from '../../generated/panel'
+import { PlatformType } from '../../generated/panel/client'
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { extractPayload, encryptData } from "../../lib/apiCryptography";
@@ -10,7 +11,6 @@ import { SecurityCache } from "../../src/core/SecurityCache";
 import socketService from "../../services/socket-service";
 
 
-const panel = new panelClient()
 
 
 export const createModule = async (req: AuthenticatedRequest, res: Response) => {

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient as panelClient, ActionType } from '../../generated/panel'
+import { ActionType } from '../../generated/panel/client'
+import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from '../../lib/generateResponse';
 import HttpStatus from '../../lib/httpStatus';
 import { extractPayload, encryptData } from '../../lib/apiCryptography';
@@ -7,7 +8,6 @@ import { createMenuAction, getMenuAction, getMenuActions } from '../../dal/panel
 import { AuthenticatedRequest } from "../../src/core/types";
 import { handlePrismaError } from '../../lib/prismaErrorHandler';
 
-const panel = new panelClient()
 
 export const create = async (req: AuthenticatedRequest, res: Response) => {
     try {

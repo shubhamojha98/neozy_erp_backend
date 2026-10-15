@@ -11,67 +11,6 @@ import {
 import { project } from "../../lib/globalprimsaclient";
 import convertBigIntToString from "../../lib/bigIntConversion";
 
-export const createCustomer = async (
-  req: AuthenticatedRequest,
-  res: Response,
-) => {
-  try {
-    const data = extractPayload(req.body);
-    const userId = Number.isNaN(Number(req.user?.uid))
-      ? 1
-      : Number(req.user?.uid);
-    const companyId = Number.isNaN(Number(data.companyId))
-      ? 1
-      : Number(data.companyId);
-    const customerCode =
-      data.customerCode || `CUST-${Date.now().toString().slice(-6)}`;
-    const phone = String(data.customerPhone || data.phone || "").trim();
-    const name = String(data.customerName || data.name || "").trim();
-
-    if (!phone || !name) {
-      throw new Error("Customer name and phone number are required.");
-    }
-
-    const existing = await project.customer.findUnique({
-      where: { customerPhone: phone },
-    });
-    if (existing) {
-      return genrateResponse(
-        res,
-        HttpStatus.OK,
-        "Customer already exists.",
-        convertBigIntToString(existing),
-      );
-    }
-
-    const newCustomer = await project.customer.create({
-      data: {
-        companyId,
-        customerCode,
-        customerName: name,
-        customerPhone: phone,
-        customerEmail: data.customerEmail || data.email || null,
-        customerType: data.customerType || data.type || "B2C",
-        createdBy: userId,
-        groupId: data.groupId || null,
-      },
-    });
-
-    return genrateResponse(
-      res,
-      HttpStatus.OK,
-      "Customer created successfully.",
-      convertBigIntToString(newCustomer),
-    );
-  } catch (error: any) {
-    return genrateResponse(
-      res,
-      HttpStatus.BadRequest,
-      error.message || "Failed to create customer.",
-    );
-  }
-};
-
 export const createProject = async (
   req: AuthenticatedRequest,
   res: Response,

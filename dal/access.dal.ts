@@ -1,4 +1,4 @@
-import { CompanyStatus, DataScope, Prisma, TenantStatus, UserStatus } from "../generated/panel";
+import { CompanyStatus, DataScope, Prisma, TenantStatus, UserStatus } from "../generated/panel/client";
 import {panel} from "../lib/globalprimsaclient";
 
 export const SUPER_ADMIN = "SUPER_ADMIN";
@@ -167,8 +167,25 @@ export async function getAccessContext(userId: number, companyId: number | null)
 export const can = (ctx: Pick<AccessContext, "isSuperAdmin" | "permissions">, code: string) =>
   ctx.isSuperAdmin || ctx.permissions.includes(code);
 
+// ============================================================
+// SESSION REVOKE — token_version badhte hi purane saare token turant band
+// User ka role / permission / company access badle to ye call karo.
+// (User deactivate / delete / company se hatana authMiddleware khud pakad leta hai)
+// ============================================================
+export const revokeUserSessions = (userIds: number[]) =>
+  panel.user.updateMany({ where: { id: { in: userIds } }, data: { token_version: { increment: 1 } } });
+
+/** Role ki permissions badli → us role wale saare users ka session band */
+export const revokeRoleSessions = async (roleId: number) => {
+  const members = await panel.companyUserRole.findMany({ where: { role_id: roleId }, select: { company_user: { select: { user_id: true } } } });
+  return revokeUserSessions(members.map((m) => m.company_user.user_id));
+};
+
 /** Company ids a business query may read (COMPANY_TREE = company + all sub-companies). */
-export async function scopedCompanyIds(ctx: AccessContext): Promise<number[]> {
+/** Data scope ke liye itna hi chahiye (AccessContext ya JWT user dono se ban jata hai) */
+export type ScopeContext = Pick<AccessContext, "companyId" | "isSuperAdmin" | "companyUserId" | "dataScope">;
+
+export async function scopedCompanyIds(ctx: ScopeContext): Promise<number[]> {
   if (ctx.companyId == null || (!ctx.isSuperAdmin && !ctx.companyUserId)) return [];
   if (ctx.dataScope !== DataScope.COMPANY_TREE) return [ctx.companyId];
   const self = await panel.company.findUniqueOrThrow({ where: { id: ctx.companyId }, select: { hierarchy_path: true } });
@@ -180,7 +197,7 @@ export async function scopedCompanyIds(ctx: AccessContext): Promise<number[]> {
 }
 
 /** CompanyUser ids visible for SELF / TEAM scopes. null = no user filter. */
-export async function scopedCompanyUserIds(ctx: AccessContext): Promise<number[] | null> {
+export async function scopedCompanyUserIds(ctx: ScopeContext): Promise<number[] | null> {
   if (ctx.isSuperAdmin || !ctx.companyUserId) return null;
   if (ctx.dataScope === DataScope.SELF) return [ctx.companyUserId];
   if (ctx.dataScope !== DataScope.TEAM) return null;
