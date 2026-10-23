@@ -70,3 +70,40 @@ export const moveStage = (projectId: number, stage: ProjectStage, message: strin
   db.projectActivity.create({ data: { projectId, type: ProjectActivityType.STAGE, message, createdBy: userId } }),
 ];
 
+
+// Ab tak kitna paisa aaya (delete wale chhod ke)
+export async function paidTotal(projectId: number) {
+  const sum = await db.payment.aggregate({ where: { projectId, deletedAt: null }, _sum: { amount: true } });
+  return Number(sum._sum.amount ?? 0);
+}
+
+// Agla code (QT / INV / ORD / DSP / SO) — company ke last record se
+const LAST_CODE = {
+  QT: (companyId: number) => db.quotation.findFirst({ where: { companyId }, orderBy: { id: "desc" }, select: { quotationNo: true } }).then((r) => r?.quotationNo),
+  INV: (companyId: number) => db.invoice.findFirst({ where: { companyId }, orderBy: { id: "desc" }, select: { invoiceNo: true } }).then((r) => r?.invoiceNo),
+  ORD: (companyId: number) => db.projectOrder.findFirst({ where: { companyId }, orderBy: { id: "desc" }, select: { orderNo: true } }).then((r) => r?.orderNo),
+  SO: (companyId: number) => db.salesOrder.findFirst({ where: { companyId }, orderBy: { id: "desc" }, select: { orderNo: true } }).then((r) => r?.orderNo),
+  DSP: (companyId: number) => db.dispatch.findFirst({ where: { companyId }, orderBy: { id: "desc" }, select: { dispatchNo: true } }).then((r) => r?.dispatchNo),
+};
+
+// Naya code banake create — do request ek saath aayein to unique error par dobara try
+export async function createWithCode(prefix: keyof typeof LAST_CODE, companyId: number, create: (code: string) => Promise<unknown>) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await create(nextCode(prefix, await LAST_CODE[prefix](companyId)));
+    } catch (err) {
+      const duplicateCode = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+      if (!duplicateCode || attempt >= 2) throw err;
+    }
+  }
+}
+
+// Stage ke kaam se pehle check: project mila, active hai, sahi stage par hai
+// error ho to { error: "..." } (controller 400/404 bhejta hai)
+export async function projectAtStage(scope: Scope, id: number, stage: ProjectStage) {
+  const project = await findProject(scope, id);
+  if (!project) return { notFound: true as const };
+  if (project.status !== ProjectStatus.ACTIVE) return { error: "Project is not active" };
+  if (project.stage !== stage) return { error: `This can be done only in ${stage.replace(/_/g, " ").toLowerCase()} stage` };
+  return { project };
+}

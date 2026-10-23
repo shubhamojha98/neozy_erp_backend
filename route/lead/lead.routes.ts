@@ -14,6 +14,7 @@ import {
 } from "../../controller/lead/lead.controller";
 import { deleteDocument, getDocumentFile, listDocuments, uploadDocument } from "../../controller/document/document.controller";
 import { requirePermission } from "../../middleware/authMiddleware";
+import { validId } from "../../middleware/validId";
 import { documentUpload } from "../../middleware/documentUpload";
 import { validate } from "../../middleware/validate";
 import { uploadDocumentSchema } from "../../validations/document.validation";
@@ -21,6 +22,7 @@ import { assignLeadSchema, callSchema, leadSchema, lostSchema, noteSchema } from
 import { customerSchema } from "../../validations/customer.validation";
 
 const router = Router();
+["id", "docId"].forEach((name) => router.param(name, validId)); // galat id → 404
 
 router.get("/meta", requirePermission("leads.leads.view"), getLeadMeta);
 router.get("/", requirePermission("leads.leads.view"), listLeads);

@@ -15,6 +15,7 @@ const MODULE_BY_PATH: Record<string, string> = {
   project: "projects",
   lead: "leads",
   customer: "sales",
+  "sales-order": "sales",
 };
 
 // Login ke baad sabke liye khule (ye sirf user ka apna data dete hain)

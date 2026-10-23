@@ -71,7 +71,118 @@ enum ProjectActivityType {
   STAGE
   SURVEY
   ENGINEERING
+  QUOTATION
+  LOAN
+  REGISTRATION
+  INVOICE
+  PAYMENT
+  ORDER
+  DISPATCH
+  INSTALLATION
+  QC
+  COMMISSIONING
+  NET_METERING
+  SUBSIDY
+  HANDOVER
   NOTE
+
+  @@schema("project")
+}
+
+// B2B sales order: Quotation / Invoice → Order (100% advance) → Dispatch → Close
+enum SalesOrderStage {
+  QUOTATION
+  INVOICE
+  ORDER
+  DISPATCH
+
+  @@schema("project")
+}
+
+enum SalesOrderStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+
+  @@schema("project")
+}
+
+enum DispatchStatus {
+  DISPATCHED
+  DELIVERED
+
+  @@schema("project")
+}
+
+enum SerialType {
+  PANEL
+  INVERTER
+
+  @@schema("project")
+}
+
+enum InstallationStatus {
+  SCHEDULED
+  COMPLETED
+
+  @@schema("project")
+}
+
+enum QcStatus {
+  PASSED
+  FAILED
+
+  @@schema("project")
+}
+
+enum NetMeteringStatus {
+  SUBMITTED
+  METER_INSTALLED
+  REJECTED
+
+  @@schema("project")
+}
+
+enum SubsidyStatus {
+  SUBMITTED
+  DISBURSED
+  REJECTED
+  NOT_APPLICABLE // customer eligible nahi / subsidy nahi chahiye
+
+  @@schema("project")
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+
+  @@schema("project")
+}
+
+enum LoanStatus {
+  APPLIED
+  SANCTIONED
+  REJECTED
+
+  @@schema("project")
+}
+
+enum RegistrationStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+
+  @@schema("project")
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CHEQUE
+  BANK_TRANSFER
+  LOAN // bank loan disbursement
 
   @@schema("project")
 }
@@ -133,7 +244,8 @@ model Customer {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  projects Project[]
+  projects    Project[]
+  salesOrders SalesOrder[]
 
   @@unique([companyId, customerCode])
   @@index([companyId, phone])
@@ -153,7 +265,8 @@ model Project {
   projectType String // Residential / Commercial / Industrial / Agricultural
   stage       ProjectStage  @default(SURVEY)
   status      ProjectStatus @default(ACTIVE)
-  paymentMode PaymentMode? // quotation ke baad: Cash ya Bank Loan
+  paymentMode   PaymentMode? // quotation accept par: Cash ya Bank Loan
+  contractValue Decimal?     @db.Decimal(14, 2) // accepted quotation ka total (payment % isi par)
 
   assignedTo  Int? // project owner (user id)
   surveyorId  Int?
@@ -172,9 +285,23 @@ model Project {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  surveys     Survey[]
-  engineering EngineeringDesign?
-  activities  ProjectActivity[]
+  surveys      Survey[]
+  engineering  EngineeringDesign?
+  quotations   Quotation[]
+  loan         LoanApplication?
+  registration Registration?
+  invoice      Invoice?
+  payments     Payment[]
+  order         ProjectOrder?
+  dispatch      Dispatch?
+  serials       EquipmentSerial[]
+  installation  Installation?
+  qualityChecks QualityCheck[]
+  commissioning Commissioning?
+  netMetering   NetMetering?
+  subsidy       Subsidy?
+  handover      Handover?
+  activities    ProjectActivity[]
 
   @@unique([companyId, projectCode])
   @@index([companyId, stage])
@@ -246,17 +373,357 @@ model EngineeringDesign {
   @@schema("project")
 }
 
+// Quotation — item lines + charges. ACCEPTED hone ke baad lock (invoice isi se banta hai)
+model Quotation {
+  id           Int         @id @default(autoincrement())
+  companyId    Int
+  projectId    Int? // B2C project ki
+  project      Project?    @relation(fields: [projectId], references: [id])
+  salesOrderId Int? // ya B2B sales order ki
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  quotationNo String // QT000001 (company me unique)
+
+  date             DateTime  @db.Date
+  validUntil       DateTime? @db.Date
+  deliveryTimeline String?
+  notes            String?
+
+  subtotal            Decimal @db.Decimal(14, 2)
+  taxTotal            Decimal @db.Decimal(14, 2)
+  installationCharges Decimal @default(0) @db.Decimal(14, 2)
+  transportCharges    Decimal @default(0) @db.Decimal(14, 2)
+  discount            Decimal @default(0) @db.Decimal(14, 2)
+  total               Decimal @db.Decimal(14, 2)
+
+  status    QuotationStatus @default(DRAFT)
+  createdBy Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  items   QuotationItem[]
+  invoice Invoice?
+
+  @@unique([companyId, quotationNo])
+  @@index([projectId])
+  @@index([salesOrderId])
+  @@schema("project")
+}
+
+model QuotationItem {
+  id          Int       @id @default(autoincrement())
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   Int? // inventory product (optional)
+  name        String
+  description String?
+  hsn         String?
+  unit        String    @default("Nos")
+  qty         Decimal   @db.Decimal(12, 2)
+  rate        Decimal   @db.Decimal(14, 2) // GST se pehle, per unit
+  gstRate     Decimal   @db.Decimal(5, 2) // %
+  sortOrder   Int       @default(0)
+
+  @@index([quotationId])
+  @@schema("project")
+}
+
+// Bank loan — sirf LOAN wale project me. SANCTIONED → Registration
+model LoanApplication {
+  id               Int        @id @default(autoincrement())
+  companyId        Int
+  projectId        Int        @unique
+  project          Project    @relation(fields: [projectId], references: [id])
+  bankName         String
+  branch           String?
+  applicationNo    String?
+  loanAmount       Decimal    @db.Decimal(14, 2)
+  status           LoanStatus @default(APPLIED)
+  sanctionedAmount Decimal?   @db.Decimal(14, 2)
+  sanctionDate     DateTime?  @db.Date
+  rejectReason     String?
+  notes            String?
+  createdBy        Int
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@schema("project")
+}
+
+// Portal / scheme registration (PM Surya Ghar, DISCOM ...). APPROVED → Invoice
+model Registration {
+  id               Int                @id @default(autoincrement())
+  companyId        Int
+  projectId        Int                @unique
+  project          Project            @relation(fields: [projectId], references: [id])
+  portal           String
+  discom           String?
+  applicationNo    String
+  registrationDate DateTime           @db.Date
+  status           RegistrationStatus @default(SUBMITTED)
+  rejectReason     String?
+  notes            String?
+  createdBy        Int
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@schema("project")
+}
+
+// Invoice — accepted quotation se (items wahi). Ek project ka ek invoice.
+model Invoice {
+  id           Int         @id @default(autoincrement())
+  companyId    Int
+  projectId    Int?        @unique
+  project      Project?    @relation(fields: [projectId], references: [id])
+  salesOrderId Int?        @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  quotationId Int       @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  invoiceNo   String // INV000001 (company me unique)
+  date        DateTime  @db.Date
+  total       Decimal   @db.Decimal(14, 2)
+  createdBy   Int
+  createdAt   DateTime  @default(now())
+
+  @@unique([companyId, invoiceNo])
+  @@schema("project")
+}
+
+// Customer se aaya paisa (loan disbursement bhi). Order ke liye 90% zaroori.
+model Payment {
+  id           Int           @id @default(autoincrement())
+  companyId    Int
+  projectId    Int?
+  project      Project?      @relation(fields: [projectId], references: [id])
+  salesOrderId Int?
+  salesOrder   SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  amount    Decimal       @db.Decimal(14, 2)
+  method    PaymentMethod
+  paidOn    DateTime      @db.Date
+  reference String? // UTR / cheque no.
+  notes     String?
+  createdBy Int
+  createdAt DateTime      @default(now())
+  deletedAt DateTime?
+
+  @@index([projectId])
+  @@index([salesOrderId])
+  @@schema("project")
+}
+
+// Order — 90% payment ke baad hi. Iske baad Dispatch.
+model ProjectOrder {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  projectId   Int      @unique
+  project     Project  @relation(fields: [projectId], references: [id])
+  orderNo     String // ORD000001 (company me unique)
+  date        DateTime @db.Date
+  paidPercent Decimal  @db.Decimal(5, 2) // order bante waqt kitna paid tha
+  createdBy   Int
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, orderNo])
+  @@schema("project")
+}
+
+// Dispatch — material site par bheja. DELIVERED → Installation
+model Dispatch {
+  id           Int            @id @default(autoincrement())
+  companyId    Int
+  projectId    Int?           @unique
+  project      Project?       @relation(fields: [projectId], references: [id])
+  salesOrderId Int?           @unique
+  salesOrder   SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  dispatchNo   String // DSP000001 (company me unique)
+  dispatchDate DateTime       @db.Date
+  vehicleNo    String
+  driverName   String?
+  driverPhone  String?
+  lrNumber     String?
+  notes        String?
+  status       DispatchStatus @default(DISPATCHED)
+  deliveredAt  DateTime?
+  receivedBy   String? // site par kisne liya
+  createdBy    Int
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([companyId, dispatchNo])
+  @@schema("project")
+}
+
+// Panel / inverter serial — Dispatch par, warna Installation / QC par
+model EquipmentSerial {
+  id        Int          @id @default(autoincrement())
+  companyId Int
+  projectId Int
+  project   Project      @relation(fields: [projectId], references: [id])
+  type      SerialType
+  serialNo  String
+  stage     ProjectStage // kis stage par record hua
+  createdBy Int
+  createdAt DateTime     @default(now())
+
+  @@unique([companyId, serialNo])
+  @@index([projectId])
+  @@schema("project")
+}
+
+// Installation — installer + date → complete (stage QC)
+model Installation {
+  id            Int                @id @default(autoincrement())
+  companyId     Int
+  projectId     Int                @unique
+  project       Project            @relation(fields: [projectId], references: [id])
+  installerId   Int
+  scheduledDate DateTime           @db.Date
+  status        InstallationStatus @default(SCHEDULED)
+  completedAt   DateTime?
+  notes         String?
+  createdBy     Int
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@schema("project")
+}
+
+// QC — har attempt ek record (fail → dobara). items = [{ item, passed }]
+model QualityCheck {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id])
+  items     Json
+  status    QcStatus
+  remarks   String?
+  checkedBy Int
+  checkedAt DateTime @default(now())
+
+  @@index([projectId])
+  @@schema("project")
+}
+
+// Commissioning — system chalu, generation test, warranty
+model Commissioning {
+  id             Int      @id @default(autoincrement())
+  companyId      Int
+  projectId      Int      @unique
+  project        Project  @relation(fields: [projectId], references: [id])
+  commissionedOn DateTime @db.Date
+  generationKwh  Decimal  @db.Decimal(10, 2)
+  warrantyStart  DateTime @db.Date
+  warrantyMonths Int
+  notes          String?
+  createdBy      Int
+  createdAt      DateTime @default(now())
+
+  @@schema("project")
+}
+
+// Net metering — DISCOM application → meter installed (aage Subsidy sirf 100% payment par)
+model NetMetering {
+  id            Int               @id @default(autoincrement())
+  companyId     Int
+  projectId     Int               @unique
+  project       Project           @relation(fields: [projectId], references: [id])
+  discom        String
+  applicationNo String
+  submittedOn   DateTime          @db.Date
+  status        NetMeteringStatus @default(SUBMITTED)
+  meterNo       String?
+  installedOn   DateTime?         @db.Date
+  rejectReason  String?
+  notes         String?
+  createdBy     Int
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@schema("project")
+}
+
+// Subsidy — apply → disbursed (Handover) | rejected | not applicable (Handover)
+model Subsidy {
+  id              Int           @id @default(autoincrement())
+  companyId       Int
+  projectId       Int           @unique
+  project         Project       @relation(fields: [projectId], references: [id])
+  scheme          String
+  applicationNo   String?
+  amount          Decimal?      @db.Decimal(14, 2)
+  appliedOn       DateTime?     @db.Date
+  status          SubsidyStatus @default(SUBMITTED)
+  disbursedAmount Decimal?      @db.Decimal(14, 2)
+  disbursedOn     DateTime?     @db.Date
+  rejectReason    String?
+  notes           String?
+  createdBy       Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@schema("project")
+}
+
+// Handover — customer ko system saunpa, project COMPLETED
+model Handover {
+  id           Int      @id @default(autoincrement())
+  companyId    Int
+  projectId    Int      @unique
+  project      Project  @relation(fields: [projectId], references: [id])
+  handoverDate DateTime @db.Date
+  receivedBy   String // customer / family member ka naam
+  notes        String?
+  createdBy    Int
+  createdAt    DateTime @default(now())
+
+  @@schema("project")
+}
+
+// B2B sales order (material / trading customer). Quotation, Invoice, Payment, Dispatch B2C wali tables hi.
+model SalesOrder {
+  id            Int              @id @default(autoincrement())
+  companyId     Int
+  orderNo       String // SO000001 (company me unique)
+  customerId    Int
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  stage         SalesOrderStage  @default(QUOTATION)
+  status        SalesOrderStatus @default(OPEN)
+  contractValue Decimal?         @db.Decimal(14, 2) // accepted quotation / invoice ka total
+  confirmedAt   DateTime? // 100% payment ke baad order confirm
+  closedAt      DateTime?
+  assignedTo    Int?
+  notes         String?
+  createdBy     Int
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+
+  quotations Quotation[]
+  invoice    Invoice?
+  payments   Payment[]
+  dispatch   Dispatch?
+  activities ProjectActivity[]
+
+  @@unique([companyId, orderNo])
+  @@index([companyId, stage])
+  @@index([customerId])
+  @@schema("project")
+}
+
 // Project timeline — har kaam ka record
 model ProjectActivity {
-  id        Int                 @id @default(autoincrement())
-  projectId Int
-  project   Project             @relation(fields: [projectId], references: [id])
+  id           Int                 @id @default(autoincrement())
+  projectId    Int?
+  project      Project?            @relation(fields: [projectId], references: [id])
+  salesOrderId Int? // B2B sales order ki timeline
+  salesOrder   SalesOrder?         @relation(fields: [salesOrderId], references: [id])
   type      ProjectActivityType
   message   String
   createdBy Int
   createdAt DateTime            @default(now())
 
   @@index([projectId])
+  @@index([salesOrderId])
   @@schema("project")
 }
 

@@ -10,12 +10,14 @@ import {
 } from "../../controller/customer/customer.controller";
 import { deleteDocument, getDocumentFile, listDocuments, uploadDocument } from "../../controller/document/document.controller";
 import { requirePermission } from "../../middleware/authMiddleware";
+import { validId } from "../../middleware/validId";
 import { documentUpload } from "../../middleware/documentUpload";
 import { validate } from "../../middleware/validate";
 import { uploadDocumentSchema } from "../../validations/document.validation";
 import { assignCustomerSchema, bulkDeleteSchema, customerSchema } from "../../validations/customer.validation";
 
 const router = Router();
+["id", "docId"].forEach((name) => router.param(name, validId)); // galat id → 404
 
 router.get("/meta", requirePermission("sales.customers.view"), getCustomerMeta);
 router.get("/", requirePermission("sales.customers.view"), listCustomers);

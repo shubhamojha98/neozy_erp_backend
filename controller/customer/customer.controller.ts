@@ -99,7 +99,7 @@ export const listCustomers = async (req: AuthenticatedRequest, res: Response) =>
 };
 
 // ============================================================
-// DETAIL — customer + projects + source lead + pichla / agla
+// DETAIL — customer + projects (B2C) / sales orders (B2B) + source lead + pichla / agla
 // ============================================================
 export const getCustomer = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -113,6 +113,11 @@ export const getCustomer = async (req: AuthenticatedRequest, res: Response) => {
           where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           select: { id: true, projectCode: true, stage: true, status: true, capacityKw: true, createdAt: true },
+        },
+        salesOrders: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, orderNo: true, stage: true, status: true, contractValue: true, createdAt: true },
         },
       },
     });
@@ -224,7 +229,7 @@ export const assignCustomer = async (req: AuthenticatedRequest, res: Response) =
 };
 
 // ============================================================
-// DELETE (soft) — /:id ya bulk { ids }. Jinke project hain wo skip.
+// DELETE (soft) — /:id ya bulk { ids }. Jinke project / order hain wo skip.
 // ============================================================
 export const deleteCustomers = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -234,16 +239,16 @@ export const deleteCustomers = async (req: AuthenticatedRequest, res: Response) 
     const ids: number[] = req.params.id ? [Number(req.params.id)] : req.body.ids;
     const customers = await db.customer.findMany({
       where: customerWhere(scope, { id: { in: ids } }),
-      select: { id: true, _count: { select: { projects: { where: { deletedAt: null } } } } },
+      select: { id: true, _count: { select: { projects: { where: { deletedAt: null } }, salesOrders: { where: { deletedAt: null } } } } },
     });
-    const deletable = customers.filter((c) => c._count.projects === 0).map((c) => c.id);
+    const deletable = customers.filter((c) => c._count.projects === 0 && c._count.salesOrders === 0).map((c) => c.id);
     const skipped = customers.length - deletable.length;
     if (!deletable.length) {
-      return genrateResponse(res, HttpStatus.BadRequest, skipped ? "Customers with projects cannot be deleted" : "Customer not found");
+      return genrateResponse(res, HttpStatus.BadRequest, skipped ? "Customers with projects or orders cannot be deleted" : "Customer not found");
     }
 
     await db.customer.updateMany({ where: { id: { in: deletable } }, data: { deletedAt: new Date() } });
-    const message = skipped ? `${deletable.length} deleted, ${skipped} skipped (have projects)` : `${deletable.length} customer(s) deleted`;
+    const message = skipped ? `${deletable.length} deleted, ${skipped} skipped (have projects or orders)` : `${deletable.length} customer(s) deleted`;
     return genrateResponse(res, HttpStatus.OK, message, { deleted: deletable.length, skipped });
   } catch (err) {
     console.error("[DeleteCustomers]", err);

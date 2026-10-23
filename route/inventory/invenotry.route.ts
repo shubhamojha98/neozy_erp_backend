@@ -2,8 +2,10 @@ import { Router } from "express";
 import { createCategory,getCategoryList,updateCategory,deleteCategory,getCategoryById } from "../../controller/inventory/productCategory.controller";
 import { createProduct,getProductList,updateProduct,deleteProduct,getProductById } from "../../controller/inventory/product.controller";
 import { createWarehouse, getWarehouseList, getWarehouseById, updateWarehouse, deleteWarehouse } from "../../controller/inventory/warehouse.controller";
+import { validId } from "../../middleware/validId";
 
 const router = Router();
+["id"].forEach((name) => router.param(name, validId)); // galat id → 404
 
 // Category
 router.post("/category", createCategory);

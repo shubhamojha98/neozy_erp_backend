@@ -10,6 +10,7 @@ import authRoute from "./auth/auth.route";
 import panelRoute from "./panel/panel.route";
 import inventoryRoutes from "./inventory/invenotry.route";
 import projectRoutes from "./project/project.route";
+import salesOrderRoutes from "./sales-order/sales-order.route";
 import leadRoutes from "./lead/lead.routes";
 import customerRoutes from "./customer/customer.route";
 import platformRoutes from "./platform/platform.route";
@@ -49,6 +50,7 @@ router.use(dynamicCheckPermission());
 router.use("/api/panel", panelRoute);
 router.use("/api/inventory", inventoryRoutes);
 router.use("/api/project", projectRoutes);
+router.use("/api/sales-order", salesOrderRoutes);
 router.use("/api/lead", leadRoutes);
 router.use("/api/customer", customerRoutes);
 

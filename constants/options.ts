@@ -47,3 +47,24 @@ export const DOCUMENT_CATEGORIES = [
 // Project (B2C)
 export const METER_PHASES = ["Single Phase", "Three Phase"] as const;
 export const STRUCTURE_TYPES = ["Elevated", "Flush Mount", "Ground Mount", "Tin Shed Mount"] as const;
+export const REGISTRATION_PORTALS = ["PM Surya Ghar", "DISCOM Portal", "State Nodal Agency", "Other"] as const;
+export const GST_RATES = [0, 5, 12, 18, 28] as const;
+
+// Order ke liye kam se kam itna % payment (haath wala workflow: 90% ke baad hi order, baaki 10% net metering ke baad)
+export const ORDER_MIN_PERCENT = 90;
+
+// QC checklist (purane app jaisa) — sab OK hone par hi pass
+export const QC_CHECKLIST = [
+  "Panel mounting and alignment verified",
+  "Electrical connections checked",
+  "Grounding / earthing verified",
+  "String voltage measured and verified",
+  "Inverter configuration verified",
+  "AC/DC isolation tested",
+  "Earthing resistance measured",
+  "System insulation resistance tested",
+  "Meter reading captured",
+  "Overall workmanship inspection",
+] as const;
+
+export const SUBSIDY_SCHEMES = ["PM Surya Ghar", "State Subsidy", "Other"] as const;

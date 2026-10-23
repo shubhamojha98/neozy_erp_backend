@@ -5,9 +5,10 @@ import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import { companyUsers, getScope, isCompanyUser, NO_COMPANY, userIdsByName, userNames } from "../../dal/scope.dal";
+import { panel } from "../../lib/globalprimsaclient";
 import { customerWhere } from "../../dal/customer.dal";
 import { activity, createProjectRecord, findProject, projectCardFilter, projectWhere, STAGE_ORDER } from "../../dal/project.dal";
-import { INDIAN_STATES, METER_PHASES, PROJECT_TYPES, ROOF_TYPES, STRUCTURE_TYPES } from "../../constants/options";
+import { GST_RATES, INDIAN_STATES, ORDER_MIN_PERCENT, METER_PHASES, PROJECT_TYPES, QC_CHECKLIST, REGISTRATION_PORTALS, ROOF_TYPES, STRUCTURE_TYPES, SUBSIDY_SCHEMES } from "../../constants/options";
 import { dateRangeIST } from "../../utility/istDate";
 import { CreateProjectInput, ProjectInput, projectListQuery } from "../../validations/project.validation";
 
@@ -28,6 +29,11 @@ export const getProjectMeta = async (req: AuthenticatedRequest, res: Response) =
       meterPhases: METER_PHASES,
       structureTypes: STRUCTURE_TYPES,
       stages: STAGE_ORDER,
+      registrationPortals: REGISTRATION_PORTALS,
+      gstRates: GST_RATES,
+      orderMinPercent: ORDER_MIN_PERCENT,
+      qcChecklist: QC_CHECKLIST,
+      subsidySchemes: SUBSIDY_SCHEMES,
       users: await companyUsers(scope.companyId),
     });
   } catch (err) {
@@ -113,19 +119,41 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
         customer: { select: { id: true, customerCode: true, name: true, phone: true, email: true, sanctionLoadKw: true, consumerNumber: true, monthlyBill: true } },
         surveys: { orderBy: { createdAt: "desc" } },
         engineering: true,
-        activities: { orderBy: { createdAt: "desc" }, take: 50 },
+        quotations: { orderBy: { createdAt: "desc" }, include: { items: { orderBy: { sortOrder: "asc" } } } },
+        loan: true,
+        registration: true,
+        invoice: true,
+        payments: { where: { deletedAt: null }, orderBy: { paidOn: "desc" } },
+        order: true,
+        dispatch: true,
+        serials: { orderBy: { createdAt: "asc" } },
+        installation: true,
+        qualityChecks: { orderBy: { checkedAt: "desc" } },
+        commissioning: true,
+        netMetering: true,
+        subsidy: true,
+        handover: true,
+        activities: { orderBy: { createdAt: "desc" }, take: 100 },
       },
     });
     if (!row) return genrateResponse(res, HttpStatus.NotFound, "Project not found");
 
-    const [names, prev, next] = await Promise.all([
+    const [names, prev, next, company] = await Promise.all([
       userNames([
         row.assignedTo, row.surveyorId, row.installerId, row.createdBy, row.engineering?.approvedBy,
         ...row.surveys.flatMap((s) => [s.surveyorId, s.completedBy]),
         ...row.activities.map((a) => a.createdBy),
+        ...row.payments.map((p) => p.createdBy),
+        row.installation?.installerId,
+        ...row.qualityChecks.map((q) => q.checkedBy),
       ]),
       db.project.findFirst({ where: projectWhere(scope, { createdAt: { gt: row.createdAt } }), orderBy: { createdAt: "asc" }, select: { id: true } }),
       db.project.findFirst({ where: projectWhere(scope, { createdAt: { lt: row.createdAt } }), orderBy: { createdAt: "desc" }, select: { id: true } }),
+      // Quotation / Invoice PDF ke header ke liye
+      panel.company.findUnique({
+        where: { id: row.companyId },
+        select: { name: true, legal_name: true, address: true, city: true, state: true, pincode: true, gstin: true, phone: true, email: true },
+      }),
     ]);
     const name = (id: number | null | undefined) => (id ? names.get(id) ?? null : null);
 
@@ -138,6 +166,11 @@ export const getProject = async (req: AuthenticatedRequest, res: Response) => {
       surveys: row.surveys.map((s) => ({ ...s, surveyorName: name(s.surveyorId), completedByName: name(s.completedBy) })),
       engineering: row.engineering && { ...row.engineering, approvedByName: name(row.engineering.approvedBy) },
       activities: row.activities.map((a) => ({ ...a, createdByName: name(a.createdBy) })),
+      payments: row.payments.map((p) => ({ ...p, createdByName: name(p.createdBy) })),
+      paid: row.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+      installation: row.installation && { ...row.installation, installerName: name(row.installation.installerId) },
+      qualityChecks: row.qualityChecks.map((q) => ({ ...q, checkedByName: name(q.checkedBy) })),
+      company,
       prevId: prev?.id ?? null,
       nextId: next?.id ?? null,
     });

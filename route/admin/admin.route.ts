@@ -12,6 +12,7 @@ import {
   updateUser,
 } from "../../controller/admin/user.controller";
 import { requirePermission } from "../../middleware/authMiddleware";
+import { validId } from "../../middleware/validId";
 import { validate } from "../../middleware/validate";
 import {
   attachUserSchema,
@@ -25,6 +26,7 @@ import {
 
 // Administration — /api/panel/roles, /api/panel/users (active company ke andar)
 const router = Router();
+["id"].forEach((name) => router.param(name, validId)); // galat id → 404
 
 // Roles & Permissions
 router.get("/roles/meta", requirePermission("admin.roles.view"), getRoleMeta);
