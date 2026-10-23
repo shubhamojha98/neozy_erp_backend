@@ -5,6 +5,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as IOServer, Socket } from 'socket.io';
 import { panel } from "../lib/globalprimsaclient";
+import { ALLOWED_ORIGINS } from "../lib/allowedOrigins";
 
 type LoggerLike = {
     info?: (...args: any[]) => void;
@@ -54,7 +55,7 @@ class SocketService {
         try {
             this.io = new IOServer(server, {
                 cors: {
-                    origin: process.env.FRONTEND_URL || '*',
+                    origin: ALLOWED_ORIGINS, // API wale hi origins, '*' nahi
                     methods: ['GET', 'POST'],
                     credentials: true,
                 },
@@ -305,60 +306,15 @@ class SocketService {
     timestamp: payload.timestamp ?? new Date().toISOString(),
   };
 
-  let saved: any = null;
-  try {
-    const now = new Date();
-    const twoSecondsAgo = new Date(now.getTime() - 2000);
-
-    
-    const existing = await panel.notifications.findFirst({
-      where: {
-        room: roomName ?? null,
-        title: payload.title,
-        message: payload.message,
-      created_at: { gte: twoSecondsAgo }
-      },
-      orderBy: { created_at: 'desc' },
-    });
-
-    if (existing) {
-     const emitPayload = this.sanitizeForEmit({
-        id: String(existing.id),
-        title: existing.title,
-        message: existing.message,
-        type: existing.type ?? 'info',
-        data: existing.data ?? null,
-        created_at: existing.created_at?.toISOString?.() ?? normalized.timestamp,
-      });
-      this.io!.to(roomName).emit(this.EVENTS.NOTIFICATION, emitPayload);
-      this.logger.info && this.logger.info('Skipped duplicate notification (recent match), emitted existing:', emitPayload);
-      return existing;
-    }
-
-    // Create new notification row
-    saved = await panel.notifications.create({
-      data: {
-        room: roomName ?? null,
-        title: payload.title,
-        message: payload.message,
-        type: payload.type ?? 'info',
-        data: payload.data ?? undefined,
-        user_id: typeof (payload.data as any)?.userId === 'number' ? (payload.data as any).userId : undefined,
-        ulb_id: typeof (payload.data as any)?.ulbId === 'number' ? (payload.data as any).ulbId : undefined,
-      },
-    });
-  } catch (dbErr) {
-    this.logger.error && this.logger.error('Failed to save notification to DB (non-fatal):', dbErr);
-  }
-
+  // Sirf live emit — notification DB me save karna ho to panel.notification.create() alag se karo (user_id ke saath)
   try {
     const emitPayloadRaw = {
-      id: saved?.id ? String(saved.id) : null,
+      id: null,
       title: payload.title,
       message: payload.message,
       type: payload.type ?? 'info',
       data: payload.data ?? null,
-      created_at: saved?.created_at?.toISOString?.() ?? normalized.timestamp,
+      created_at: normalized.timestamp,
     };
 
     const emitPayload = this.sanitizeForEmit(emitPayloadRaw);

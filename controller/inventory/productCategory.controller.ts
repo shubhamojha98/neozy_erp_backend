@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "../../src/core/types";
-import { AuthPayload } from "../../type/common.type";
+import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { extractPayload, encryptData } from "../../lib/apiCryptography";
@@ -12,7 +11,7 @@ export const createCategory = async (
 ) => {
   try {
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     if (!data.companyId || !data.categoryName) {
       return genrateResponse(
@@ -146,7 +145,7 @@ export const updateCategory = async (
 ) => {
   try {
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     const category = await inventory.productCategory.update({
       where: {

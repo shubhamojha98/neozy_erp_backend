@@ -5,14 +5,14 @@ import HttpStatus from "../../lib/httpStatus";
 import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import { getScope, NO_COMPANY, userNames } from "../../dal/scope.dal";
 import { DocumentEntity, documentOwner, documentWhere, listDocumentsOf } from "../../dal/document.dal";
-import { DOCUMENT_CATEGORIES } from "../../constants/crm";
+import { DOCUMENT_CATEGORIES } from "../../constants/options";
 import { absoluteUploadPath, InvalidFileError, removeUploadFile, saveDocumentFile } from "../../utility/fileStorage";
 import { UploadDocumentInput } from "../../validations/document.validation";
 
 // Ek hi controller Lead aur Customer dono ke liye: route par listDocuments("lead") / listDocuments("customer")
 // URL: /api/lead/:id/documents ...  /api/customer/:id/documents ...
 
-const NOT_FOUND = { lead: "Lead not found", customer: "Customer not found" };
+const NOT_FOUND = { lead: "Lead not found", customer: "Customer not found", project: "Project not found" };
 
 // ============================================================
 // LIST — documents + upload karne wale ka naam + categories

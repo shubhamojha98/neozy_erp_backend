@@ -1,8 +1,9 @@
-import { Prisma } from "../generated/project/client";
+import { CustomerStatus, CustomerType, Prisma } from "../generated/project/client";
 import { project } from "../lib/globalprimsaclient";
 import { nextCode } from "../utility/codeGenerator";
 import type { CustomerInput } from "../validations/customer.validation";
 import type { Scope } from "./scope.dal";
+import type { CUSTOMER_CARDS } from "../validations/customer.validation";
 
 // Scope ke andar wale customers (SELF / TEAM: jo assign hain ya khud banaye)
 export const customerWhere = (scope: Scope, extra: Prisma.CustomerWhereInput = {}): Prisma.CustomerWhereInput => ({
@@ -13,6 +14,16 @@ export const customerWhere = (scope: Scope, extra: Prisma.CustomerWhereInput = {
 });
 
 export const findCustomer = (scope: Scope, id: number) => project.customer.findFirst({ where: customerWhere(scope, { id }) });
+
+// Upar wala KPI card → filter
+const CARD_FILTERS: Record<(typeof CUSTOMER_CARDS)[number], Prisma.CustomerWhereInput> = {
+  B2B: { type: CustomerType.B2B },
+  B2C: { type: CustomerType.B2C },
+  UNASSIGNED: { assignedTo: null },
+  NO_PROJECT: { type: CustomerType.B2C, projects: { none: { deletedAt: null } } }, // B2C jinka project shuru nahi hua
+  INACTIVE: { status: CustomerStatus.INACTIVE },
+};
+export const customerCardFilter = (card: (typeof CUSTOMER_CARDS)[number]) => CARD_FILTERS[card];
 
 // Validated form → customer table ke columns (type / assignedTo / status alag se set hote hain)
 export function customerColumns(input: CustomerInput) {

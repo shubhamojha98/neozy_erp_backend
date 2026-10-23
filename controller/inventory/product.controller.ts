@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "../../src/core/types";
-import { AuthPayload } from "../../type/common.type";
+import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { extractPayload, encryptData } from "../../lib/apiCryptography";
@@ -13,7 +12,7 @@ export const createProduct = async (
 ) => {
   try {
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     if (
       !data.companyId ||
@@ -189,7 +188,7 @@ export const updateProduct = async (
 ) => {
   try {
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     const product = await inventory.product.update({
       where: {

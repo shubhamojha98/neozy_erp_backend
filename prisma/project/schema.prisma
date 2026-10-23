@@ -10,29 +10,48 @@ datasource db {
   schemas = ["project"]
 }
 
+// ============================================================
+// PROJECT (B2C solar installation) — stage haath wale workflow ke order me:
+// Survey → Engineering → Quotation → (Loan) → Registration → Invoice → Order
+// → Dispatch → Installation → QC → Commissioning → Net Metering → Subsidy → Handover
+// ============================================================
 enum ProjectStage {
-  QUOTATION
   SURVEY
-  SERVICE
-  HANDOVER
-  SUBSIDY
+  ENGINEERING
+  QUOTATION
+  LOAN // sirf Bank Loan wale project me
+  REGISTRATION
+  INVOICE
+  ORDER
+  DISPATCH
+  INSTALLATION
+  QC
+  COMMISSIONING
   NET_METERING
+  SUBSIDY
+  HANDOVER
 
   @@schema("project")
 }
 
 enum ProjectStatus {
   ACTIVE
+  ON_HOLD
   COMPLETED
   CANCELLED
-  ARCHIVED
+
+  @@schema("project")
+}
+
+enum PaymentMode {
+  CASH
+  LOAN
 
   @@schema("project")
 }
 
 enum SurveyStatus {
-  PENDING
-  IN_PROGRESS
+  SCHEDULED
   COMPLETED
   CANCELLED
 
@@ -40,10 +59,19 @@ enum SurveyStatus {
 }
 
 enum EngineeringStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+  DRAFT
+  APPROVED
+
+  @@schema("project")
+}
+
+enum ProjectActivityType {
+  CREATED
+  UPDATED
+  STAGE
+  SURVEY
+  ENGINEERING
+  NOTE
 
   @@schema("project")
 }
@@ -117,105 +145,118 @@ model Customer {
 model Project {
   id          Int      @id @default(autoincrement())
   companyId   Int
-  projectCode String   @unique
+  projectCode String // PRJ000001 (company me unique)
   customerId  Int
   customer    Customer @relation(fields: [customerId], references: [id])
 
-  leadId         String?
-  capacityKw     Decimal       @db.Decimal(10, 2)
-  projectType    String
-  stage          ProjectStage  @default(QUOTATION)
-  status         ProjectStatus @default(ACTIVE)
-  salesOwnerId   Int?
-  salesOwnerName String?
-  surveyorId     Int?
-  surveyorName   String?
-  installerId    Int?
-  installerName  String?
-  managerId      Int?
-  managerName    String?
-  addressLine1   String?
-  addressLine2   String?
-  landmark       String?
-  city           String?
-  district       String?
-  state          String?
-  pincode        String?
-  country        String        @default("India")
-  notes          String?
-  groupId        String?
-  createdBy      Int
-  createdAt      DateTime      @default(now())
-  updatedBy      Int?
-  updatedAt      DateTime      @updatedAt
-  recStatus      Int           @default(1)
+  capacityKw  Decimal       @db.Decimal(10, 2) // planned kW (engineering ke baad final)
+  projectType String // Residential / Commercial / Industrial / Agricultural
+  stage       ProjectStage  @default(SURVEY)
+  status      ProjectStatus @default(ACTIVE)
+  paymentMode PaymentMode? // quotation ke baad: Cash ya Bank Loan
 
-  surveys Survey[]
+  assignedTo  Int? // project owner (user id)
+  surveyorId  Int?
+  installerId Int?
 
+  // Site address (default: customer ka installation address)
+  address  String?
+  landmark String?
+  city     String?
+  state    String?
+  pincode  String?
+  notes    String?
+
+  createdBy Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  surveys     Survey[]
+  engineering EngineeringDesign?
+  activities  ProjectActivity[]
+
+  @@unique([companyId, projectCode])
+  @@index([companyId, stage])
   @@index([customerId])
-  @@index([stage])
-  @@index([status])
-  @@index([salesOwnerId])
-  @@index([surveyorId])
-  @@index([installerId])
-  @@index([managerId])
-  @@index([createdAt])
+  @@index([assignedTo])
   @@schema("project")
 }
 
+// Site survey — schedule → report bhar ke complete (photos Documents me "Site Photo")
 model Survey {
   id        Int     @id @default(autoincrement())
   companyId Int
-  surveyId  String  @unique
   projectId Int
   project   Project @relation(fields: [projectId], references: [id])
 
-  scheduledDate DateTime?
-  surveyorId    Int?
-  status        SurveyStatus @default(PENDING)
-  notes         String?
+  surveyorId  Int
+  scheduledAt DateTime
+  status      SurveyStatus @default(SCHEDULED)
 
-  // Engineering can be added later
-  engineering EngineeringDesign?
+  // Report
+  roofType           String?
+  roofAreaSqft       Decimal? @db.Decimal(10, 2)
+  shadowFreeAreaSqft Decimal? @db.Decimal(10, 2)
+  meterPhase         String? // Single Phase / Three Phase
+  sanctionLoadKw     Decimal? @db.Decimal(10, 2)
+  recommendedKw      Decimal? @db.Decimal(10, 2)
+  shadingNotes       String?
+  structureNotes     String?
+  latitude           Decimal? @db.Decimal(9, 6)
+  longitude          Decimal? @db.Decimal(9, 6)
+  remarks            String?
+  completedAt        DateTime?
+  completedBy        Int?
+  cancelReason       String?
 
-  groupId String?
-
-  createdAt DateTime @default(now())
   createdBy Int
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  updatedBy Int?
-  recStatus Int      @default(1)
 
   @@index([projectId])
-  @@index([status])
+  @@index([surveyorId])
   @@schema("project")
 }
 
+// Engineering design — ek project ka ek design (drawings Documents me)
 model EngineeringDesign {
-  id         Int               @id @default(autoincrement())
-  companyId  Int
-  designId   String            @unique
-  // Engineering belongs to a Survey
-  surveyId   Int               @unique
-  // Keep projectId if you frequently query engineering by project
-  //   projectId Int
-  capacityKw Decimal?          @db.Decimal(10, 2)
-  designerId Int?
-  status     EngineeringStatus @default(PENDING)
+  id        Int     @id @default(autoincrement())
+  companyId Int
+  projectId Int     @unique
+  project   Project @relation(fields: [projectId], references: [id])
 
-  groupId   String?
+  panelBrand    String?
+  panelWattage  Int // W per panel
+  panelCount    Int
+  systemKw      Decimal @db.Decimal(10, 2) // panelCount × panelWattage / 1000
+  inverterBrand String?
+  inverterKw    Decimal @db.Decimal(10, 2)
+  structureType String? // Elevated / Flush Mount / Ground Mount
+  notes         String?
+
+  status     EngineeringStatus @default(DRAFT)
+  approvedBy Int?
+  approvedAt DateTime?
+
   createdBy Int
   createdAt DateTime @default(now())
-  updatedBy Int?
   updatedAt DateTime @updatedAt
-  recStatus Int      @default(1)
 
-  survey Survey @relation(fields: [surveyId], references: [id])
-  //    project   Project @relation(fields: [projectId], references: [id])
+  @@schema("project")
+}
 
-  @@index([surveyId])
-  //   @@index([projectId])
-  @@index([status])
+// Project timeline — har kaam ka record
+model ProjectActivity {
+  id        Int                 @id @default(autoincrement())
+  projectId Int
+  project   Project             @relation(fields: [projectId], references: [id])
+  type      ProjectActivityType
+  message   String
+  createdBy Int
+  createdAt DateTime            @default(now())
+
+  @@index([projectId])
   @@schema("project")
 }
 

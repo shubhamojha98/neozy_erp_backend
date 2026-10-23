@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CustomerStatus, CustomerType } from "../generated/project/client";
-import { AADHAAR_REGEX, GSTIN_REGEX, INDUSTRY_TYPES, PROJECT_TYPES, ROOF_TYPES } from "../constants/crm";
+import { INDUSTRY_TYPES, PROJECT_TYPES, ROOF_TYPES } from "../constants/options";
+import { AADHAAR_REGEX, GSTIN_REGEX } from "../constants/regex";
 import { email, optional, phone, pincode, requiredText, state, userId } from "./common.validation";
 
 // Dono type me common fields
@@ -53,7 +54,10 @@ export const bulkDeleteSchema = z.object({
   ids: z.array(z.coerce.number().int().positive(), { error: "Select customers to delete" }).min(1, { error: "Select customers to delete" }),
 });
 
-// LIST query — galat value par default
+// Upar wale KPI cards (filter dal/customer.dal.ts ke CARD_FILTERS me)
+export const CUSTOMER_CARDS = ["B2B", "B2C", "UNASSIGNED", "NO_PROJECT", "INACTIVE"] as const;
+
+// LIST query — galat value par default (card = upar wala KPI card, ek time par ek)
 export const customerListQuery = z.object({
   page: z.coerce.number().int().min(1).catch(1),
   perPage: z.coerce.number().int().min(1).max(100).catch(10),
@@ -63,6 +67,7 @@ export const customerListQuery = z.object({
   assignedTo: z.coerce.number().int().positive().optional().catch(undefined),
   from: z.iso.date().optional().catch(undefined), // YYYY-MM-DD
   to: z.iso.date().optional().catch(undefined),
+  card: z.enum(CUSTOMER_CARDS).optional().catch(undefined),
   sort: z.enum(["name", "type", "status", "createdAt"]).catch("createdAt"),
   dir: z.enum(["asc", "desc"]).catch("desc"),
 });

@@ -1,4 +1,4 @@
-// Leads + Customers ki fixed lists (frontend ko /meta API se milti hain)
+// Dropdown ki fixed lists — lead / customer / project / document forms (frontend ko /meta API se milti hain)
 
 export const LEAD_SOURCES = [
   "Website",
@@ -38,12 +38,12 @@ export const INDUSTRY_TYPES = ["Manufacturing", "Retail", "IT/Software", "Health
 export const PROJECT_TYPES = ["Residential", "Commercial", "Industrial", "Agricultural"] as const;
 export const ROOF_TYPES = ["RCC Flat", "Tin Sheet", "Asbestos", "Mangalore Tile", "Other"] as const;
 
-export const PHONE_REGEX = /^[6-9]\d{9}$/;
-export const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-export const AADHAAR_REGEX = /^\d{12}$/;
-
 // Documents (Lead / Customer / Project) — har category ka disk par apna folder
 export const DOCUMENT_CATEGORIES = [
   "Aadhaar Card", "PAN Card", "Electricity Bill", "Property Document", "Bank Passbook / Cheque",
-  "Site Photo", "GST Certificate", "Agreement", "Other",
+  "Site Photo", "GST Certificate", "Agreement", "Single Line Diagram", "Structure Drawing", "Other",
 ] as const;
+
+// Project (B2C)
+export const METER_PHASES = ["Single Phase", "Three Phase"] as const;
+export const STRUCTURE_TYPES = ["Elevated", "Flush Mount", "Ground Mount", "Tin Shed Mount"] as const;

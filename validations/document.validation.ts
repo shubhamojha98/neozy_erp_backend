@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DOCUMENT_CATEGORIES } from "../constants/crm";
+import { DOCUMENT_CATEGORIES } from "../constants/options";
 
 // Upload form (multipart): file + category
 export const uploadDocumentSchema = z.object({

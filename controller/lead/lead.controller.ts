@@ -7,7 +7,7 @@ import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import { companyUsers, getScope, isCompanyUser, NO_COMPANY, userIdsByName, userNames } from "../../dal/scope.dal";
 import { createLead as createLeadRecord, findLead, leadWhere, OPEN_STATUSES } from "../../dal/lead.dal";
 import { createCustomer, findCustomerByPhone } from "../../dal/customer.dal";
-import { CONNECTED_OUTCOMES, INDIAN_STATES, LEAD_SOURCES, NOT_CONNECTED_REASONS } from "../../constants/crm";
+import { CONNECTED_OUTCOMES, INDIAN_STATES, LEAD_SOURCES, NOT_CONNECTED_REASONS } from "../../constants/options";
 import { dateRangeIST, startOfTodayIST } from "../../utility/istDate";
 import { CallInput, LeadInput, leadListQuery } from "../../validations/lead.validation";
 import { CustomerInput } from "../../validations/customer.validation";
@@ -209,7 +209,7 @@ export const deleteLead = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 // ============================================================
-// CALL LOG — outcome se status apne aap badalta hai (constants/crm.ts)
+// CALL LOG — outcome se status apne aap badalta hai (constants/options.ts)
 // ============================================================
 export const logCall = async (req: AuthenticatedRequest, res: Response) => {
   try {

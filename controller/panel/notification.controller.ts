@@ -1,127 +1,79 @@
-import { AuthenticatedRequest } from "../../src/core/types";
+import { Response } from "express";
+import { Prisma } from "../../generated/panel/client";
 import { panel } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
-import { Request, Response } from "express";
+import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 
+// Notifications — har user sirf APNE dekh / read kar sakta hai
+// Active company ke + bina company wale (system) notifications
 
-/**
- * sanitizeForJson
- * - converts BigInt -> string
- */
-function sanitizeForJson<T>(value: T): T {
-  const convert = (v: any): any => {
-    if (typeof v === "bigint") return v.toString();
-    if (v instanceof Date) return v.toISOString();
-    if (Array.isArray(v)) return v.map(convert);
-    if (v && typeof v === "object") {
-      const out: any = {};
-      for (const [k, val] of Object.entries(v)) {
-        out[k] = convert(val);
-      }
-      return out;
-    }
-    return v;
-  };
+const myNotifications = (req: AuthenticatedRequest): Prisma.NotificationWhereInput => ({
+  user_id: req.user!.userId,
+  OR: [{ company_id: null }, ...(req.user!.company ? [{ company_id: req.user!.company.id }] : [])],
+});
 
-  return convert(value) as T;
-}
-
-/**
- * GET /master/notifications
- */
+// ============================================================
+// LIST — ?page=1&limit=20&unread=true
+// ============================================================
 export const getNotifications = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (String(req.query.unread).toLowerCase() === 'true') {
-      where.is_read = false;
-    }
-    if (req.query.room) {
-      where.room = String(req.query.room);
-    }
-
-    const [items, total] = await Promise.all([
-      panel.notifications.findMany({
-        where,
-        orderBy: { created_at: 'desc' },
-        take: limit,
-        skip,
-      }),
-      panel.notifications.count({ where }),
-    ]);
-
-    // sanitize DB values (BigInt -> string, Date -> ISO)
-    const sanitizedItems = sanitizeForJson(items);
-
-    const payload = {
-      data: sanitizedItems,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const where: Prisma.NotificationWhereInput = {
+      ...myNotifications(req),
+      ...(req.query.unread === "true" && { read_at: null }),
     };
 
-    genrateResponse(res, HttpStatus.OK, "Notifications fetched successfully", payload);
-  } catch (err: any) {
-    console.error(`[${new Date().toISOString()}] getNotifications error:`, err);
-    genrateResponse(res, err?.status || HttpStatus.BadRequest, err?.message || "Failed to fetch notifications");
+    const [rows, total, unread] = await Promise.all([
+      panel.notification.findMany({
+        where,
+        orderBy: { created_at: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: { id: true, title: true, message: true, type: true, link: true, entity_type: true, entity_id: true, read_at: true, created_at: true },
+      }),
+      panel.notification.count({ where }),
+      panel.notification.count({ where: { ...myNotifications(req), read_at: null } }),
+    ]);
+
+    return genrateResponse(res, HttpStatus.OK, "Notifications", { rows, total, unread, page, limit });
+  } catch (err) {
+    console.error("[GetNotifications]", err);
+    return genrateResponse(res, HttpStatus.InternalServerError, "Failed to load notifications");
   }
 };
 
-/**
- * PUT /master/notifications/read/:id
- */
+// ============================================================
+// MARK READ — ek notification
+// ============================================================
 export const markNotificationRead = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const idParam = req.params.id;
-    if (!idParam) {
-      return genrateResponse(res, HttpStatus.BadRequest, "Invalid notification id");
-    }
-
-    // If your DB id is BigInt in Prisma, convert param to BigInt or number as needed.
-    // Prisma expects a number for non-BigInt id; adapt if your model uses BigInt primary key.
-    const id = Number(idParam); // if notifications.id is BigInt in DB, Prisma may still accept Number
-
-    const existing = await panel.notifications.findUnique({ where: { id } });
-    if (!existing) {
-      return genrateResponse(res, HttpStatus.NotFound, "Notification not found");
-    }
-
-    const updated = await panel.notifications.update({
-      where: { id },
-      data: { is_read: true },
+    // updateMany + user filter → dusre ka notification id bhejo to bhi kuch nahi badlega
+    const result = await panel.notification.updateMany({
+      where: { id: Number(req.params.id), ...myNotifications(req), read_at: null },
+      data: { read_at: new Date() },
     });
-
-    const sanitized = sanitizeForJson(updated);
-    genrateResponse(res, HttpStatus.OK, "Notification marked as read", sanitized);
-  } catch (err: any) {
-    console.error(`[${new Date().toISOString()}] markNotificationRead error:`, err);
-    genrateResponse(res, err?.status || HttpStatus.BadRequest, err?.message || "Failed to mark notification read");
+    if (result.count === 0) return genrateResponse(res, HttpStatus.NotFound, "Notification not found or already read");
+    return genrateResponse(res, HttpStatus.OK, "Notification marked as read");
+  } catch (err) {
+    console.error("[MarkNotificationRead]", err);
+    return genrateResponse(res, HttpStatus.InternalServerError, "Failed to mark notification as read");
   }
 };
 
-/**
- * PUT /master/notifications/read-all
- */
+// ============================================================
+// MARK ALL READ
+// ============================================================
 export const markAllNotificationsRead = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const where: any = { is_read: false };
-    if (req.query.room) where.room = String(req.query.room);
-
-    await panel.notifications.updateMany({
-      where,
-      data: { is_read: true },
+    const result = await panel.notification.updateMany({
+      where: { ...myNotifications(req), read_at: null },
+      data: { read_at: new Date() },
     });
-
-    genrateResponse(res, HttpStatus.OK, "All notifications marked as read");
-  } catch (err: any) {
-    console.error(`[${new Date().toISOString()}] markAllNotificationsRead error:`, err);
-    genrateResponse(res, err?.status || HttpStatus.BadRequest, err?.message || "Failed to mark all notifications read");
+    return genrateResponse(res, HttpStatus.OK, `${result.count} notification(s) marked as read`);
+  } catch (err) {
+    console.error("[MarkAllNotificationsRead]", err);
+    return genrateResponse(res, HttpStatus.InternalServerError, "Failed to mark notifications as read");
   }
 };

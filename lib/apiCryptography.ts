@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import { config } from 'dotenv'
 
+// NOTE: Ye security layer NAHI hai — key frontend bundle (NEXT_PUBLIC_) me hai, koi bhi decrypt kar sakta hai.
+// Data ki asli suraksha HTTPS se hai. Ise sirf payload obfuscation samjho.
+
 config()
 const ENCRYPTION_KEY = process.env.API_ENCRYPTION_KEY as string;
 

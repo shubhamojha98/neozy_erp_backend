@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "../../src/core/types";
-import { AuthPayload } from "../../type/common.type";
+import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { extractPayload, encryptData } from "../../lib/apiCryptography";
@@ -14,7 +13,7 @@ export const createWarehouse = async (
 ) => {
   try {
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     if (
       !data.companyId ||
@@ -180,7 +179,7 @@ export const updateWarehouse = async (
   try {
     const { id } = req.params;
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     const warehouse = await inventory.warehouse.findFirst({
       where: {
@@ -267,7 +266,7 @@ export const deleteWarehouse = async (
   try {
     const { id } = req.params;
     const data = extractPayload(req.body);
-    const user = req.user as AuthPayload;
+    const user = req.user!;
 
     const warehouse = await inventory.warehouse.findFirst({
       where: {

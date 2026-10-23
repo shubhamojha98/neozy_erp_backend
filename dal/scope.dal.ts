@@ -27,7 +27,7 @@ export async function getScope(user: TokenPayload): Promise<Scope | null> {
   return { companyId, companyIds, userIds };
 }
 
-const fullName = (u: { first_name: string | null; last_name: string | null; username: string }) =>
+export const fullName = (u: { first_name: string | null; last_name: string | null; username: string }) =>
   [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 
 // "Assign To" dropdown — company ke active users
@@ -43,6 +43,24 @@ export async function companyUsers(companyId: number) {
 export async function isCompanyUser(companyId: number, userId: number) {
   const users = await companyUsers(companyId);
   return users.some((u) => u.id === userId);
+}
+
+// Search box me salesperson ka naam → un users ki ids (in companies ke members me se)
+export async function userIdsByName(companyIds: number[], search: string) {
+  const members = await panel.companyUser.findMany({
+    where: {
+      company_id: { in: companyIds },
+      user: {
+        OR: [
+          { first_name: { contains: search, mode: "insensitive" } },
+          { last_name: { contains: search, mode: "insensitive" } },
+          { username: { contains: search, mode: "insensitive" } },
+        ],
+      },
+    },
+    select: { user_id: true },
+  });
+  return [...new Set(members.map((m) => m.user_id))];
 }
 
 // User ids → naam (table me "Assigned To" dikhane ke liye)

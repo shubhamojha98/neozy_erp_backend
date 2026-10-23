@@ -7,6 +7,10 @@ export const todayIST = () => new Date().toLocaleDateString("en-CA", { timeZone:
 export const dayStartIST = (ymd: string) => new Date(`${ymd}T00:00:00+05:30`);
 export const dayEndIST = (ymd: string) => new Date(`${ymd}T23:59:59.999+05:30`);
 
+// List ka date filter: from din ki subah se to din ki raat tak (jo diya ho wahi). Kuch nahi diya → undefined (koi filter nahi)
+export const dateRangeIST = (from?: string, to?: string) =>
+  from || to ? { ...(from && { gte: dayStartIST(from) }), ...(to && { lte: dayEndIST(to) }) } : undefined;
+
 // Aaj subah 12 baje (isse pehle ka follow-up = overdue)
 export const startOfTodayIST = () => dayStartIST(todayIST());
 

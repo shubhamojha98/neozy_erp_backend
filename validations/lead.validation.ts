@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CONNECTED_OUTCOMES, LEAD_SOURCES, NOT_CONNECTED_REASONS } from "../constants/crm";
+import { CONNECTED_OUTCOMES, LEAD_SOURCES, NOT_CONNECTED_REASONS } from "../constants/options";
 import { date, email, optional, phone, pincode, requiredText, state, userId } from "./common.validation";
 
 // ============================================================

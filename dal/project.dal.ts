@@ -1,0 +1,72 @@
+import { Prisma, ProjectActivityType, ProjectStage, ProjectStatus } from "../generated/project/client";
+import { project as db } from "../lib/globalprimsaclient";
+import { nextCode } from "../utility/codeGenerator";
+import type { Scope } from "./scope.dal";
+import type { PROJECT_CARDS } from "../validations/project.validation";
+
+// Stage ka order (haath wala workflow). LOAN sirf Bank Loan wale project me aata hai.
+export const STAGE_ORDER: ProjectStage[] = [
+  ProjectStage.SURVEY, ProjectStage.ENGINEERING, ProjectStage.QUOTATION, ProjectStage.LOAN, ProjectStage.REGISTRATION,
+  ProjectStage.INVOICE, ProjectStage.ORDER, ProjectStage.DISPATCH, ProjectStage.INSTALLATION, ProjectStage.QC,
+  ProjectStage.COMMISSIONING, ProjectStage.NET_METERING, ProjectStage.SUBSIDY, ProjectStage.HANDOVER,
+];
+
+// Scope ke andar wale projects (SELF / TEAM: owner, surveyor, installer ya banane wala)
+export const projectWhere = (scope: Scope, extra: Prisma.ProjectWhereInput = {}): Prisma.ProjectWhereInput => ({
+  companyId: { in: scope.companyIds },
+  deletedAt: null,
+  ...(scope.userIds && {
+    OR: [
+      { assignedTo: { in: scope.userIds } },
+      { surveyorId: { in: scope.userIds } },
+      { installerId: { in: scope.userIds } },
+      { createdBy: { in: scope.userIds } },
+    ],
+  }),
+  ...extra,
+});
+
+export const findProject = (scope: Scope, id: number) => db.project.findFirst({ where: projectWhere(scope, { id }) });
+
+// Upar wale KPI card → filter
+const CARD_FILTERS: Record<(typeof PROJECT_CARDS)[number], Prisma.ProjectWhereInput> = {
+  SURVEY_DESIGN: { status: { not: ProjectStatus.COMPLETED }, stage: { in: [ProjectStage.SURVEY, ProjectStage.ENGINEERING] } },
+  SALES: {
+    status: { not: ProjectStatus.COMPLETED },
+    stage: { in: [ProjectStage.QUOTATION, ProjectStage.LOAN, ProjectStage.REGISTRATION, ProjectStage.INVOICE, ProjectStage.ORDER] },
+  },
+  EXECUTION: {
+    status: { not: ProjectStatus.COMPLETED },
+    stage: { in: [ProjectStage.DISPATCH, ProjectStage.INSTALLATION, ProjectStage.QC, ProjectStage.COMMISSIONING] },
+  },
+  POST_INSTALL: {
+    status: { not: ProjectStatus.COMPLETED },
+    stage: { in: [ProjectStage.NET_METERING, ProjectStage.SUBSIDY, ProjectStage.HANDOVER] },
+  },
+  COMPLETED: { status: ProjectStatus.COMPLETED },
+};
+export const projectCardFilter = (card: (typeof PROJECT_CARDS)[number]) => CARD_FILTERS[card];
+
+// Naya project — code PRJ000001 (do request ek saath aayein to unique error par dobara try)
+export async function createProjectRecord(data: Omit<Prisma.ProjectUncheckedCreateInput, "projectCode">) {
+  for (let attempt = 0; ; attempt++) {
+    const last = await db.project.findFirst({ where: { companyId: data.companyId }, orderBy: { id: "desc" }, select: { projectCode: true } });
+    try {
+      return await db.project.create({ data: { ...data, projectCode: nextCode("PRJ", last?.projectCode) } });
+    } catch (err) {
+      const duplicateCode = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+      if (!duplicateCode || attempt >= 2) throw err;
+    }
+  }
+}
+
+// Timeline me ek line
+export const activity = (projectId: number, type: ProjectActivityType, message: string, createdBy: number) =>
+  db.projectActivity.create({ data: { projectId, type, message, createdBy } });
+
+// Stage badlo + timeline (transaction me use karne ke liye do query)
+export const moveStage = (projectId: number, stage: ProjectStage, message: string, userId: number) => [
+  db.project.update({ where: { id: projectId }, data: { stage } }),
+  db.projectActivity.create({ data: { projectId, type: ProjectActivityType.STAGE, message, createdBy: userId } }),
+];
+

@@ -1,13 +1,13 @@
 import { Response } from "express";
-import { CustomerStatus, CustomerType } from "../../generated/project/client";
+import { Prisma } from "../../generated/project/client";
 import { lead, project as db } from "../../lib/globalprimsaclient";
 import genrateResponse from "../../lib/generateResponse";
 import HttpStatus from "../../lib/httpStatus";
 import { AuthenticatedRequest } from "../../middleware/authMiddleware";
-import { companyUsers, getScope, isCompanyUser, NO_COMPANY, userNames } from "../../dal/scope.dal";
-import { createCustomer, customerColumns, customerWhere, findCustomer, findCustomerByPhone } from "../../dal/customer.dal";
-import { INDIAN_STATES, INDUSTRY_TYPES, LEAD_SOURCES, PROJECT_TYPES, ROOF_TYPES } from "../../constants/crm";
-import { dayEndIST, dayStartIST, startOfMonthIST } from "../../utility/istDate";
+import { companyUsers, getScope, isCompanyUser, NO_COMPANY, userIdsByName, userNames } from "../../dal/scope.dal";
+import { createCustomer, customerCardFilter, customerColumns, customerWhere, findCustomer, findCustomerByPhone } from "../../dal/customer.dal";
+import { INDIAN_STATES, INDUSTRY_TYPES, LEAD_SOURCES, PROJECT_TYPES, ROOF_TYPES } from "../../constants/options";
+import { dateRangeIST } from "../../utility/istDate";
 import { CustomerInput, customerListQuery } from "../../validations/customer.validation";
 
 // Body route par validate() se check hokar aati hai (validations/customer.validation.ts)
@@ -42,28 +42,29 @@ export const listCustomers = async (req: AuthenticatedRequest, res: Response) =>
     const scope = await getScope(req.user!);
     if (!scope) return genrateResponse(res, HttpStatus.BadRequest, NO_COMPANY);
 
-    const { page, perPage, search, type, status, assignedTo, from, to, sort, dir } = customerListQuery.parse(req.query);
-    const where = customerWhere(scope, {
-      ...(type && { type }),
-      ...(status && { status }),
-      ...(assignedTo && { assignedTo }),
-      ...((from || to) && { createdAt: { ...(from && { gte: dayStartIST(from) }), ...(to && { lte: dayEndIST(to) }) } }),
-      ...(search && {
-        AND: [
-          {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { phone: { contains: search } },
-              { email: { contains: search, mode: "insensitive" } },
-              { companyName: { contains: search, mode: "insensitive" } },
-              { customerCode: { contains: search, mode: "insensitive" } },
-            ],
-          },
-        ],
-      }),
-    });
+    const { page, perPage, search, from, to, card, sort, dir } = customerListQuery.parse(req.query);
 
-    const [rows, total, byStatus, byType, newThisMonth] = await Promise.all([
+    // Search: naam, phone, email, company, code ya salesperson ka naam
+    const assignedIds = search ? await userIdsByName(scope.companyIds, search) : [];
+    const searchFilter: Prisma.CustomerWhereInput = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search } },
+            { email: { contains: search, mode: "insensitive" } },
+            { companyName: { contains: search, mode: "insensitive" } },
+            { customerCode: { contains: search, mode: "insensitive" } },
+            ...(assignedIds.length ? [{ assignedTo: { in: assignedIds } }] : []),
+          ],
+        }
+      : {};
+
+    // base = search + date (cards ke number isi par), where = base + chuna hua card
+    const base = customerWhere(scope, { createdAt: dateRangeIST(from, to), AND: [searchFilter] });
+    const where: Prisma.CustomerWhereInput = card ? { AND: [base, customerCardFilter(card)] } : base;
+    const cardCount = (c: Parameters<typeof customerCardFilter>[0]) => db.customer.count({ where: { AND: [base, customerCardFilter(c)] } });
+
+    const [rows, total, all, b2b, b2c, unassigned, noProject, inactive] = await Promise.all([
       db.customer.findMany({
         where,
         orderBy: { [sort]: dir },
@@ -75,28 +76,21 @@ export const listCustomers = async (req: AuthenticatedRequest, res: Response) =>
         },
       }),
       db.customer.count({ where }),
-      db.customer.groupBy({ by: ["status"], where: customerWhere(scope), _count: true }),
-      db.customer.groupBy({ by: ["type"], where: customerWhere(scope), _count: true }),
-      db.customer.count({ where: customerWhere(scope, { createdAt: { gte: startOfMonthIST() } }) }),
+      db.customer.count({ where: base }),
+      cardCount("B2B"),
+      cardCount("B2C"),
+      cardCount("UNASSIGNED"),
+      cardCount("NO_PROJECT"),
+      cardCount("INACTIVE"),
     ]);
 
     const names = await userNames(rows.map((r) => r.assignedTo));
-    const statusCount = (s: CustomerStatus) => byStatus.find((b) => b.status === s)?._count ?? 0;
-    const typeCount = (t: CustomerType) => byType.find((b) => b.type === t)?._count ?? 0;
-
     return genrateResponse(res, HttpStatus.OK, "Customer list", {
       rows: rows.map((r) => ({ ...r, assignedToName: r.assignedTo ? names.get(r.assignedTo) ?? null : null })),
       total,
       page,
       perPage,
-      stats: {
-        total: statusCount(CustomerStatus.ACTIVE) + statusCount(CustomerStatus.INACTIVE),
-        active: statusCount(CustomerStatus.ACTIVE),
-        inactive: statusCount(CustomerStatus.INACTIVE),
-        newThisMonth,
-        b2b: typeCount(CustomerType.B2B),
-        b2c: typeCount(CustomerType.B2C),
-      },
+      stats: { total: all, b2b, b2c, unassigned, noProject, inactive },
     });
   } catch (err) {
     console.error("[ListCustomers]", err);
@@ -116,7 +110,7 @@ export const getCustomer = async (req: AuthenticatedRequest, res: Response) => {
       where: customerWhere(scope, { id: Number(req.params.id) }),
       include: {
         projects: {
-          where: { recStatus: 1 },
+          where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           select: { id: true, projectCode: true, stage: true, status: true, capacityKw: true, createdAt: true },
         },
@@ -240,7 +234,7 @@ export const deleteCustomers = async (req: AuthenticatedRequest, res: Response) 
     const ids: number[] = req.params.id ? [Number(req.params.id)] : req.body.ids;
     const customers = await db.customer.findMany({
       where: customerWhere(scope, { id: { in: ids } }),
-      select: { id: true, _count: { select: { projects: { where: { recStatus: 1 } } } } },
+      select: { id: true, _count: { select: { projects: { where: { deletedAt: null } } } } },
     });
     const deletable = customers.filter((c) => c._count.projects === 0).map((c) => c.id);
     const skipped = customers.length - deletable.length;

@@ -84,6 +84,24 @@ export async function canAccessCompany(user: AccessUser, companyId: number): Pro
   return count > 0;
 }
 
+/** Permissions usable inside a company: active, non-platform module, core or enabled for the company. */
+export function companyPermissionWhere(companyId: number, now = new Date()): Prisma.PermissionWhereInput {
+  return {
+    is_active: true,
+    menu: {
+      is_active: true,
+      module: {
+        is_active: true,
+        is_platform: false,
+        OR: [
+          { is_core: true },
+          { companies: { some: { company_id: companyId, is_active: true, OR: [{ valid_till: null }, { valid_till: { gt: now } }] } } },
+        ],
+      },
+    },
+  };
+}
+
 const EMPTY = (userId: number, companyId: number | null): AccessContext => ({
   userId, companyId, companyUserId: null, isSuperAdmin: false, dataScope: null, roles: [], permissions: [], menus: [],
 });
@@ -139,21 +157,7 @@ export async function getAccessContext(userId: number, companyId: number | null)
   membership.permission_overrides.filter((o) => o.effect === "REVOKE").forEach((o) => granted.delete(o.permission.code));
 
   const allowed = await panel.permission.findMany({
-    where: {
-      code: { in: [...granted] },
-      is_active: true,
-      menu: {
-        is_active: true,
-        module: {
-          is_active: true,
-          is_platform: false,
-          OR: [
-            { is_core: true },
-            { companies: { some: { company_id: companyId, is_active: true, OR: [{ valid_till: null }, { valid_till: { gt: now } }] } } },
-          ],
-        },
-      },
-    },
+    where: { code: { in: [...granted] }, ...companyPermissionWhere(companyId, now) },
     select: { code: true },
   });
   const permissions = allowed.map((p) => p.code);
@@ -174,6 +178,16 @@ export const can = (ctx: Pick<AccessContext, "isSuperAdmin" | "permissions">, co
 // ============================================================
 export const revokeUserSessions = (userIds: number[]) =>
   panel.user.updateMany({ where: { id: { in: userIds } }, data: { token_version: { increment: 1 } } });
+
+/** Password reset / deactivate → token ke saath refresh token bhi band (har device se logout) */
+export const logoutUserEverywhere = (userIds: number[]) =>
+  panel.$transaction([
+    panel.user.updateMany({ where: { id: { in: userIds } }, data: { token_version: { increment: 1 } } }),
+    panel.userSession.updateMany({
+      where: { user_id: { in: userIds }, revoked_at: null },
+      data: { revoked_at: new Date(), revoke_reason: "ADMIN_ACTION" },
+    }),
+  ]);
 
 /** Role ki permissions badli → us role wale saare users ka session band */
 export const revokeRoleSessions = async (roleId: number) => {

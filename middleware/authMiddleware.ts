@@ -8,11 +8,13 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "";
 if (JWT_SECRET.length < 32)
   throw new Error("JWT_SECRET missing or shorter than 32 characters");
 
+// Access token chhota rakho — refresh token se naya milta rehta hai
 export const ACCESS_TOKEN_TTL = (process.env.JWT_EXPIRES_IN ??
-  "8h") as `${number}h`;
+  "15m") as jwt.SignOptions["expiresIn"] & string;
 
 // Ye sab JWT ke andar jaata hai
 export type TokenPayload = {
+  sid: string; // user_sessions.public_id — logout karte hi ye session band
   userId: number;
   tokenVersion: number; // users.token_version — badalte hi purana token band
   username: string;
@@ -59,6 +61,10 @@ export const signToken = (payload: TokenPayload) =>
     algorithm: "HS256",
   });
 
+const CHANGE_PASSWORD_PATH = "/api/auth/change-password";
+
+const UUID_RE =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const deny = (res: Response, status: number, message: string) => {
   res.status(status).json({ success: false, message });
 };
@@ -78,6 +84,8 @@ export const authMiddleware = async (
       algorithms: ["HS256"],
     }) as TokenPayload & { iat: number; exp: number };
     user = payload;
+    // Purane token (bina sid) nahi chalenge — undefined filter Prisma me "koi bhi session" ban jata
+    if (!UUID_RE.test(user.sid ?? "")) return deny(res, 401, "Session expired. Please login again.");
   } catch (err) {
     return deny(
       res,
@@ -86,7 +94,7 @@ export const authMiddleware = async (
     );
   }
 
-  // Har request par DB check: user active hai, token purana to nahi, company access abhi bhi hai
+  // Har request par DB check: user active hai, token purana to nahi, session logout to nahi hua, company access abhi bhi hai
   try {
     const current = await panel.user.findUnique({
       where: { id: user.userId },
@@ -94,6 +102,8 @@ export const authMiddleware = async (
         status: true,
         deleted_at: true,
         token_version: true,
+        must_change_password: true,
+        sessions: { where: { public_id: user.sid, revoked_at: null, expires_at: { gt: new Date() } }, select: { id: true } },
         memberships: { where: { id: user.companyUserId ?? -1, is_active: true }, select: { id: true } },
       },
     });
@@ -102,8 +112,18 @@ export const authMiddleware = async (
       current.status === UserStatus.ACTIVE &&
       !current.deleted_at &&
       current.token_version === user.tokenVersion &&
+      current.sessions.length > 0 &&
       (!user.companyUserId || current.memberships.length > 0);
     if (!sessionValid) return deny(res, 401, "Session expired. Please login again.");
+
+    // Admin ka diya temporary password → pehle badlo, tab tak sirf change-password API chalegi
+    if (current!.must_change_password &&req.originalUrl.split("?")[0] !== CHANGE_PASSWORD_PATH) {
+      return res.status(403).json({
+        success: false,
+        code: "PASSWORD_CHANGE_REQUIRED",
+        message: "Please change your password to continue",
+      });
+    }
   } catch (err) {
     console.error("[authMiddleware]", err);
     return deny(res, 500, "Could not verify session");
