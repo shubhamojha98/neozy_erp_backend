@@ -738,6 +738,7 @@ model Document {
   leadId     Int?
   customerId Int?
   projectId  Int?
+  salesOrderId Int? // B2B order (PO, challan, delivery proof)
   category   String // Aadhaar, Electricity Bill, ...
   fileName   String // user ki file ka asli naam
   filePath   String // uploads/... (relative)
@@ -751,5 +752,6 @@ model Document {
   @@index([companyId, leadId])
   @@index([companyId, customerId])
   @@index([companyId, projectId])
+  @@index([companyId, salesOrderId])
   @@schema("project")
 }

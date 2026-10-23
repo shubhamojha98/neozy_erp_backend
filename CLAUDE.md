@@ -1,6 +1,7 @@
 # Solar EPC ERP — Backend (Express 5 + Prisma 7 + PostgreSQL)
 
 Replies to the developer (Sri) in Hinglish. Keep code simple for junior devs.
+**Code comments: always English only — never Hindi / Hinglish** (chat replies stay Hinglish).
 
 ## Folder pattern (no service layer)
 route → validate (zod) → controller → dal

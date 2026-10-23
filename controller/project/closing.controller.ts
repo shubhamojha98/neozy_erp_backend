@@ -8,6 +8,7 @@ import { getScope, NO_COMPANY } from "../../dal/scope.dal";
 import { moveStage, paidTotal, projectAtStage } from "../../dal/project.dal";
 import { inr, round2 } from "../../utility/format";
 import { NetMeteringInput, SubsidyInput } from "../../validations/project.validation";
+import { hasDocument } from "../../dal/document.dal";
 
 // Commissioning → Net Metering (aage 100% payment par) → Subsidy → Handover (project COMPLETED)
 // URL: /api/project/:id/commissioning | /net-metering | /subsidy | /handover
@@ -32,6 +33,9 @@ export const saveCommissioning = async (req: AuthenticatedRequest, res: Response
   try {
     const project = await atStage(req, res, ProjectStage.COMMISSIONING);
     if (!project) return;
+
+    // Purane app jaisa: customer sign-off (signed paper ki photo) zaroori
+    if (!(await hasDocument({ projectId: project.id }, "Customer Signature"))) return genrateResponse(res, HttpStatus.BadRequest, "Upload the customer signature first");
 
     const input = req.body as { commissionedOn: string; generationKwh: number; warrantyStart: string; warrantyMonths: number; notes: string | null };
     await db.$transaction([

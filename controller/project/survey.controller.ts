@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import { getScope, isCompanyUser, NO_COMPANY, userNames } from "../../dal/scope.dal";
 import { findProject, moveStage } from "../../dal/project.dal";
 import { SurveyReportInput } from "../../validations/project.validation";
+import { hasDocument } from "../../dal/document.dal";
 
 // Survey: schedule → report bhar ke complete (stage ENGINEERING) | cancel → dobara schedule
 // URL: /api/project/:id/survey ...
@@ -61,6 +62,9 @@ export const completeSurvey = async (req: AuthenticatedRequest, res: Response) =
     const survey = await surveyOf(project.id, Number(req.params.surveyId));
     if (!survey) return genrateResponse(res, HttpStatus.NotFound, "Survey not found");
     if (survey.status !== SurveyStatus.SCHEDULED) return genrateResponse(res, HttpStatus.BadRequest, "Only a scheduled survey can be completed");
+
+    // Purane app jaisa: kam se kam ek site photo zaroori
+    if (!(await hasDocument({ projectId: project.id }, "Site Photo"))) return genrateResponse(res, HttpStatus.BadRequest, "Upload at least one site photo");
 
     const report = req.body as SurveyReportInput;
     await db.$transaction([

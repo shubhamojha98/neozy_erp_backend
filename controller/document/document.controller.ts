@@ -12,7 +12,7 @@ import { UploadDocumentInput } from "../../validations/document.validation";
 // Ek hi controller Lead aur Customer dono ke liye: route par listDocuments("lead") / listDocuments("customer")
 // URL: /api/lead/:id/documents ...  /api/customer/:id/documents ...
 
-const NOT_FOUND = { lead: "Lead not found", customer: "Customer not found", project: "Project not found" };
+const NOT_FOUND = { lead: "Lead not found", customer: "Customer not found", project: "Project not found", "sales-order": "Sales order not found" };
 
 // ============================================================
 // LIST — documents + upload karne wale ka naam + categories

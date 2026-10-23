@@ -41,7 +41,8 @@ export const ROOF_TYPES = ["RCC Flat", "Tin Sheet", "Asbestos", "Mangalore Tile"
 // Documents (Lead / Customer / Project) — har category ka disk par apna folder
 export const DOCUMENT_CATEGORIES = [
   "Aadhaar Card", "PAN Card", "Electricity Bill", "Property Document", "Bank Passbook / Cheque",
-  "Site Photo", "GST Certificate", "Agreement", "Single Line Diagram", "Structure Drawing", "Other",
+  "Site Photo", "GST Certificate", "Agreement", "Single Line Diagram", "Structure Drawing",
+  "Installation Photo", "Customer Signature", "Delivery Proof", "Purchase Order", "Dispatch Challan", "Other",
 ] as const;
 
 // Project (B2C)

@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from "../../middleware/authMiddleware";
 import { getScope, NO_COMPANY } from "../../dal/scope.dal";
 import { findProject, moveStage } from "../../dal/project.dal";
 import { EngineeringInput } from "../../validations/project.validation";
+import { hasDocument } from "../../dal/document.dal";
 
 // Engineering: design save (draft, baar baar) → approve (capacity final, stage QUOTATION)
 // URL: /api/project/:id/engineering ...
@@ -65,6 +66,7 @@ export const approveEngineering = async (req: AuthenticatedRequest, res: Respons
 
     const design = await db.engineeringDesign.findUnique({ where: { projectId: project.id } });
     if (!design) return genrateResponse(res, HttpStatus.BadRequest, "Save the design first");
+    if (!(await hasDocument({ projectId: project.id }, "Single Line Diagram"))) return genrateResponse(res, HttpStatus.BadRequest, "Upload the single line diagram first");
 
     await db.$transaction([
       db.engineeringDesign.update({
